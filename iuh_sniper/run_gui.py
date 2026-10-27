@@ -1,0 +1,42 @@
+"""
+IUH Ledger GUI Launcher (pywebview)
+Starts native desktop window powered by Edge WebView2 / Chromium and Hallmark Dose UI.
+"""
+
+import os
+import sys
+
+# Ensure workspace root is in sys.path
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+import webview
+from iuh_sniper.gui_api import BridgeAPI
+
+def get_base_dir():
+    if getattr(sys, 'frozen', False):
+        return getattr(sys, '_MEIPASS', os.path.dirname(sys.executable))
+    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+def main():
+    base_dir = get_base_dir()
+    candidates = [
+        os.path.join(base_dir, "iuh_sniper", "gui", "index.html"),
+        os.path.join(base_dir, "gui", "index.html"),
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "gui", "index.html"),
+        os.path.join("iuh_sniper", "gui", "index.html")
+    ]
+    index_html = next((c for c in candidates if os.path.exists(c)), candidates[0])
+
+    bridge = BridgeAPI()
+
+    window = webview.create_window(
+        title="Sổ cái đăng ký học phần IUH — IUH Ledger",
+        url=index_html,
+        js_api=bridge,
+        width=1360,
+        height=860,
+        min_size=(960, 640)
+    )
+    webview.start(debug=False)
+if __name__ == "__main__":
+    main()
