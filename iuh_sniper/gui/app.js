@@ -102,6 +102,15 @@ async function onSemesterChange(idDot) {
   updateHeaderMeta();
   showInlineBanner("");
 
+  const schedSec = document.getElementById("view-schedule");
+  if (schedSec && !schedSec.hidden) {
+    loadWeeklySchedule();
+  }
+  const regSec = document.getElementById("view-registered");
+  if (regSec && !regSec.hidden) {
+    loadRegisteredCourses();
+  }
+
   if (!hasBridge()) {
     return;
   }
@@ -292,6 +301,7 @@ async function inspectSubjectClasses(maMon, maHp, tenMon, maMonCha = "", forceRe
                     <div class="btn-row-actions">
                       <button type="button" class="btn btn--accent-outline" onclick="triggerDirectRegister('${escapeAttr(currentSemesterId)}', 'GUID_${escapeAttr(maMon)}', null, ${currentLoaiDk}, '', '${escapeAttr(tenMon)}', 'DHLOP_${escapeAttr(maMon)}')">Đăng ký ngay</button>
                       <button type="button" class="btn" onclick="addTargetToQueue('${escapeAttr(currentSemesterId)}', '${escapeAttr(maMon)}', '${escapeAttr(maHp)}', '${escapeAttr(tenMon)}', 'GUID_${escapeAttr(maMon)}', 'DHLOP_${escapeAttr(maMon)}', null, ${currentLoaiDk}, '')">Thêm giám sát</button>
+                      <button type="button" class="btn" onclick="previewClassOnSchedule('${escapeAttr(currentSemesterId)}', '${escapeAttr(maMon)}', '${escapeAttr(maHp)}01', '${escapeAttr(tenMon)}', 'GUID_${escapeAttr(maMon)}', 'DHLOP_${escapeAttr(maMon)}', null)">Xem thử TKB</button>
                     </div>
                   </td>
                 </tr>
@@ -430,8 +440,8 @@ function renderEnrichedDrawerRows(rows, maMon, maHp, tenMon, maMonCha) {
           <div class="btn-row-actions">
             <button type="button" class="btn btn--accent-outline" ${canDirectReg ? "" : "disabled"} onclick="triggerDirectRegister('${escapeAttr(currentSemesterId)}', '${escapeAttr(r.guid_lhp)}', ${nhomArg}, ${currentLoaiDk}, '${escapeAttr(maMonCha || r.ma_mon_cha || "")}', '${escapeAttr(tenMon)}', '${escapeAttr(r.ten_lop)}')">Đăng ký ngay</button>
             <button type="button" class="btn" onclick="addTargetToQueue('${escapeAttr(currentSemesterId)}', '${escapeAttr(maMon)}', '${escapeAttr(maHp)}', '${escapeAttr(tenMon)}', '${escapeAttr(r.guid_lhp)}', '${escapeAttr(r.ten_lop)}', ${nhomArg}, ${currentLoaiDk}, '${escapeAttr(maMonCha || r.ma_mon_cha || "")}')">${sniperLabel}</button>
+            <button type="button" class="btn" onclick="previewClassOnSchedule('${escapeAttr(currentSemesterId)}', '${escapeAttr(maMon)}', '${escapeAttr(r.ma_lhp || maHp)}', '${escapeAttr(tenMon)}', '${escapeAttr(r.guid_lhp)}', '${escapeAttr(r.ten_lop)}', ${nhomArg})">Xem thử TKB</button>
           </div>
-        </td>
       </tr>
     `;
   }).join("");
@@ -817,7 +827,7 @@ async function loadRegisteredCourses() {
 
     if (!tbody) return;
     tbody.innerHTML = courses.map(c => `
-      <tr class="ledger-row" tabindex="0" onclick="inspectRegisteredSchedule('${escapeAttr(c.id_lhp_dk)}', '${escapeAttr(c.guid)}', '${escapeAttr(c.ten_mon)}', '${escapeAttr(c.lop_du_kien)}')">
+      <tr class="ledger-row" tabindex="0" onclick="inspectRegisteredSchedule('${escapeAttr(c.id_lhp_dk)}', '${escapeAttr(c.guid_lhp || c.guid)}', '${escapeAttr(c.ten_mon)}', '${escapeAttr(c.lop_du_kien)}')">
         <td class="mono">${escapeHtml(c.ma_lhp)}</td>
         <td>${escapeHtml(c.ten_mon)}</td>
         <td class="mono">${escapeHtml(c.lop_du_kien)}</td>
@@ -1059,7 +1069,8 @@ function escapeAttr(str) {
 /* ========================================================================= */
 /* WEEKLY ACADEMIC SCHEDULE (Ported from IUH XemLichHocTuan via /skill:xia)  */
 /* ========================================================================= */
-let currentScheduleMode = "official"; // "official" or "preview"
+let currentScheduleMode = "preview"; // "preview" (Official + Watchdog/Preview) or "official"
+let temporaryPreviewTarget = null;
 
 function setScheduleMode(mode) {
   currentScheduleMode = mode;
@@ -1070,10 +1081,36 @@ function setScheduleMode(mode) {
   loadWeeklySchedule();
 }
 
+function previewClassOnSchedule(idDot, maMon, maHp, tenMon, guidLhp, tenLop, nhomTh = null) {
+  const normNhom = (nhomTh !== null && nhomTh !== undefined && String(nhomTh).trim() !== "" && String(nhomTh) !== "null")
+    ? Number(nhomTh)
+    : null;
+  temporaryPreviewTarget = {
+    id_dot: String(idDot || currentSemesterId),
+    ma_mon: String(maMon),
+    ma_hp: String(maHp),
+    ten_mon: String(tenMon),
+    guid_lhp: String(guidLhp),
+    ten_lop: String(tenLop),
+    nhom_th: normNhom,
+    is_temp_preview: true
+  };
+  currentScheduleMode = "preview";
+  const btnOfficial = document.getElementById("btn-sched-mode-official");
+  const btnPreview = document.getElementById("btn-sched-mode-preview");
+  if (btnOfficial) btnOfficial.classList.remove("active");
+  if (btnPreview) btnPreview.classList.add("active");
+  switchView("schedule");
+}
+
+function clearTemporaryPreview() {
+  temporaryPreviewTarget = null;
+  loadWeeklySchedule();
+}
+
 async function loadWeeklySchedule() {
   const days = ["2", "3", "4", "5", "6", "7", "CN"];
   const cas = ["sang", "chieu", "toi"];
-  // Clear all grid cells first
   cas.forEach(c => {
     days.forEach(d => {
       const cell = document.getElementById(`sched-slot-${c}-${d}`);
@@ -1081,15 +1118,28 @@ async function loadWeeklySchedule() {
     });
   });
 
-  let previewClasses = null;
-  if (currentScheduleMode === "preview" && sniperTargets && sniperTargets.length > 0) {
-    previewClasses = sniperTargets;
+  let previewClasses = [];
+  if (currentScheduleMode === "preview") {
+    if (sniperTargets && sniperTargets.length > 0) {
+      previewClasses = sniperTargets.filter(t => String(t.id_dot || currentSemesterId) === String(currentSemesterId));
+    }
+    if (temporaryPreviewTarget && String(temporaryPreviewTarget.id_dot || currentSemesterId) === String(currentSemesterId)) {
+      const exists = previewClasses.some(
+        p => p.guid_lhp === temporaryPreviewTarget.guid_lhp && p.nhom_th === temporaryPreviewTarget.nhom_th
+      );
+      if (!exists) {
+        previewClasses = [...previewClasses, temporaryPreviewTarget];
+      }
+    }
   }
 
   let scheduleData = null;
   if (hasBridge()) {
     try {
-      const res = await window.pywebview.api.get_weekly_schedule(currentSemesterId, previewClasses);
+      const res = await window.pywebview.api.get_weekly_schedule(
+        currentSemesterId,
+        previewClasses.length > 0 ? previewClasses : null
+      );
       if (res && res.success) {
         scheduleData = res;
       }
@@ -1098,30 +1148,64 @@ async function loadWeeklySchedule() {
     }
   }
 
-  // If no bridge (e.g. browser test mode or preview), supply authentic default schedule matching Image #1
-  if (!scheduleData || !scheduleData.slots || scheduleData.slots.length === 0) {
+  // If no bridge (browser offline preview), build realistic schedule from sample registered + preview classes
+  if (!scheduleData) {
+    const sampleSlots = [
+      { day: "2", ca: "sang", ten_mon: "Nghiên cứu và phân tích dữ liệu thị trường", ten_lop: "DHTMDT20B_TCTA - 429701766002", tiet: "4 - 6", tiet_start: 4, tiet_end: 6, phong: "N2.2 CLC (CS Nguyễn Văn Dung)", giang_vien: "GS MINCONG TANG, ThS Đỗ Bùi Xuân Cường", thoi_gian: "05/01/2026 - 20/04/2026", loai: "ly_thuyet", is_preview: false },
+      { day: "3", ca: "sang", ten_mon: "Nguyên lý lập trình Web", ten_lop: "DHTMDT20B_TCTA - 429701766102", tiet: "1 - 3", tiet_start: 1, tiet_end: 3, phong: "N4.6 CLC (CS Nguyễn Văn Dung)", giang_vien: "ThS Nguyễn Đức Cương", thoi_gian: "13/01/2026 - 07/04/2026", loai: "ly_thuyet", is_preview: false },
+      { day: "3", ca: "chieu", ten_mon: "Cơ sở dữ liệu", ten_lop: "DHTMDT20B_TCTA - 429701765902", tiet: "7 - 9", tiet_start: 7, tiet_end: 9, phong: "N4.6 CLC (CS Nguyễn Văn Dung)", giang_vien: "TS Phan Trần Minh Khuê", thoi_gian: "13/01/2026 - 07/04/2026", loai: "ly_thuyet", is_preview: false },
+      { day: "4", ca: "sang", ten_mon: "Cơ sở dữ liệu", ten_lop: "DHTMDT20B_TCTA - 429701765902", tiet: "4 - 6", tiet_start: 4, tiet_end: 6, phong: "H7.02 (CS1)", giang_vien: "DH Lìu Cẩm Bình", ghi_chu: "Nhóm TH 1", thoi_gian: "14/01/2026 - 08/04/2026", loai: "thuc_hanh", is_preview: false },
+      { day: "5", ca: "toi", ten_mon: "Hệ thống thông tin quản lý", ten_lop: "DHTMDT20A_TCTA - 429701760701", tiet: "13 - 15", tiet_start: 13, tiet_end: 15, phong: "N1.5 CLC (CS Nguyễn Văn Dung)", giang_vien: "ThS Trần Khánh", ghi_chu: "Nhóm TH 1", thoi_gian: "15/01/2026 - 16/04/2026", loai: "thuc_hanh", is_preview: false },
+      { day: "6", ca: "chieu", ten_mon: "Nguyên lý kế toán", ten_lop: "DHTMDT20B_TCTA - 429700153403", tiet: "7 - 9", tiet_start: 7, tiet_end: 9, phong: "N4.6 CLC (CS Nguyễn Văn Dung)", giang_vien: "TS Đỗ Thị Thu Thảo", thoi_gian: "09/01/2026 - 08/05/2026", loai: "ly_thuyet", is_preview: false },
+      { day: "6", ca: "chieu", ten_mon: "Kinh tế lượng", ten_lop: "DHTMDT20B_TCTA - 429700402909", tiet: "10 - 12", tiet_start: 10, tiet_end: 12, phong: "N4.6 CLC (CS Nguyễn Văn Dung)", giang_vien: "ThS Nguyễn Thị Ngọc Hoa", thoi_gian: "09/01/2026 - 24/04/2026", loai: "ly_thuyet", is_preview: false },
+      { day: "6", ca: "toi", ten_mon: "Hệ thống thông tin quản lý", ten_lop: "DHTMDT20A_TCTA - 429701760701", tiet: "13 - 15", tiet_start: 13, tiet_end: 15, phong: "N1.3 CLC (CS Nguyễn Văn Dung)", giang_vien: "ThS Trần Khánh", thoi_gian: "09/01/2026 - 10/04/2026", loai: "ly_thuyet", is_preview: false },
+      { day: "7", ca: "toi", ten_mon: "Nguyên lý lập trình Web", ten_lop: "DHTMDT20B_TCTA - 429701766102", tiet: "13 - 15", tiet_start: 13, tiet_end: 15, phong: "H7.01 (CS1)", giang_vien: "DH Lìu Cẩm Bình", ghi_chu: "Nhóm TH 1", thoi_gian: "17/01/2026 - 11/04/2026", loai: "thuc_hanh", is_preview: false }
+    ];
+    if (previewClasses.length > 0) {
+      previewClasses.forEach(p => {
+        sampleSlots.push({
+          day: "3",
+          ca: "chieu",
+          ten_mon: p.ten_mon || "Học phần dự kiến",
+          ten_lop: `${p.ten_lop} - ${p.ma_hp || ""}`,
+          tiet: "7 - 9",
+          tiet_start: 7,
+          tiet_end: 9,
+          phong: "N4.6 CLC (Dự kiến)",
+          giang_vien: "TS Phan Trần Minh Khuê",
+          ghi_chu: p.nhom_th ? `Nhóm TH ${p.nhom_th}` : "Thuần LT",
+          loai: "ly_thuyet",
+          is_preview: true,
+          has_conflict: true,
+          conflict_with: ["Cơ sở dữ liệu"]
+        });
+      });
+      sampleSlots[2].has_conflict = true;
+      sampleSlots[2].conflict_with = [previewClasses[0].ten_mon || "Học phần dự kiến"];
+    }
     scheduleData = {
       success: true,
-      slots: [
-        { day: "2", ca: "sang", ten_mon: "Triết học Mác - Lênin", ten_lop: "DHTMDT20B_TCTA - 429701380102", tiet: "4 - 6", phong: "N4.4 (N - Cơ sở Nguyễn Văn Dung)", giang_vien: "Nguyễn Thị Kim Chung", loai: "ly_thuyet" },
-        { day: "2", ca: "toi", ten_mon: "Triết học Mác - Lênin", ten_lop: "DHTMDT20B_TCTA - 429701380102", tiet: "13 - 15", phong: "Trực tuyến (Cơ sở 1)", giang_vien: "Nguyễn Thị Kim Chung", ghi_chu: "Teams: fbj2dsr", loai: "truc_tuyen" },
-        { day: "3", ca: "chieu", ten_mon: "Tài chính doanh nghiệp", ten_lop: "DHKT21D_TCTA - 429700380206", tiet: "7 - 9", phong: "N10.3 (N - Cơ sở Nguyễn Văn Dung)", giang_vien: "Lại Cao Mai Phương", loai: "ly_thuyet" },
-        { day: "4", ca: "sang", ten_mon: "Quản trị tác nghiệp Thương mại điện tử", ten_lop: "DHTMDT20B_TCTA - 429701766202", tiet: "1 - 3", phong: "N4.4 (N - Cơ sở Nguyễn Văn Dung)", giang_vien: "Võ Thị Minh Nhựt", loai: "ly_thuyet" },
-        { day: "6", ca: "chieu", ten_mon: "Tài chính doanh nghiệp", ten_lop: "DHKT21D_TCTA - 429700380206", tiet: "7 - 9", phong: "N10.3 (N - Cơ sở Nguyễn Văn Dung)", giang_vien: "Lại Cao Mai Phương", loai: "ly_thuyet" },
-        { day: "7", ca: "sang", ten_mon: "Phân tích thiết kế hệ thống thương mại điện tử", ten_lop: "DHTMDT20B_TCTA - 429701766502", tiet: "1 - 3", phong: "H3.1.1 (H (CS1) - Cơ sở 1)", giang_vien: "Lê Thị Ánh Tuyết", loai: "thuc_hanh" },
-        { day: "7", ca: "chieu", ten_mon: "Anh văn 3", ten_lop: "DH Điện tử 20C TCTA - 429701525716", tiet: "7 - 12", phong: "X10.01", giang_vien: "", ghi_chu: "Lịch thi kết thúc học phần", loai: "lich_thi" }
-      ]
+      registered_count: 6,
+      conflict_count: previewClasses.length > 0 ? 2 : 0,
+      slots: sampleSlots
     };
   }
 
+  const slots = scheduleData.slots || [];
   let totalSlots = 0;
-  scheduleData.slots.forEach(slot => {
+  let previewCount = 0;
+  let conflictCount = 0;
+
+  slots.forEach(slot => {
     const d = slot.day;
     const c = slot.ca;
     const cell = document.getElementById(`sched-slot-${c}-${d}`);
     if (!cell) return;
 
     totalSlots++;
+    if (slot.is_preview) previewCount++;
+    if (slot.has_conflict) conflictCount++;
+
     let loaiKey = "theory";
     if (slot.loai === "thuc_hanh" || slot.loai === "practice") loaiKey = "practice";
     else if (slot.loai === "truc_tuyen" || slot.loai === "online") loaiKey = "online";
@@ -1129,14 +1213,25 @@ async function loadWeeklySchedule() {
     else if (slot.loai === "tam_ngung" || slot.loai === "suspended") loaiKey = "suspended";
     const loaiClass = `sched-card--${loaiKey}`;
     const previewClass = slot.is_preview ? "sched-card--preview" : "";
+    const conflictClass = slot.has_conflict ? "sched-card--conflict" : "";
+
     const card = document.createElement("div");
-    card.className = `sched-card ${loaiClass} ${previewClass}`;
-    let previewBadge = slot.is_preview ? '<span class="stamp-badge" style="margin-bottom: 2px;">Dự kiến ghép</span>' : '';
-    let notesHtml = slot.ghi_chu ? `<div class="sched-card__detail">Ghi chú: ${escapeHtml(slot.ghi_chu)}</div>` : '';
+    card.className = `sched-card ${loaiClass} ${previewClass} ${conflictClass}`.trim();
+
+    let badgesHtml = "";
+    if (slot.is_preview) {
+      badgesHtml += '<span class="stamp-badge" style="margin-bottom: 2px;">Dự kiến ghép</span> ';
+    }
+    if (slot.has_conflict) {
+      const cw = (slot.conflict_with || []).join(", ");
+      badgesHtml += `<span class="stamp-badge stamp-badge--conflict" style="margin-bottom: 2px;">Trùng lịch: ${escapeHtml(cw)}</span>`;
+    }
+
+    let notesHtml = slot.ghi_chu ? `<div class="sched-card__detail">Nhóm: ${escapeHtml(slot.ghi_chu)}</div>` : '';
     let lecturerHtml = slot.giang_vien ? `<div class="sched-card__detail">GV: ${escapeHtml(slot.giang_vien)}</div>` : '';
 
     card.innerHTML = `
-      ${previewBadge}
+      ${badgesHtml ? `<div>${badgesHtml}</div>` : ""}
       <div class="sched-card__title">${escapeHtml(slot.ten_mon)}</div>
       <div class="sched-card__code">${escapeHtml(slot.ten_lop)}</div>
       <div class="sched-card__detail">Tiết: ${escapeHtml(slot.tiet)}</div>
@@ -1147,9 +1242,30 @@ async function loadWeeklySchedule() {
     cell.appendChild(card);
   });
 
+  const conflictBanner = document.getElementById("schedule-conflict-banner");
+  if (conflictBanner) {
+    if (totalSlots === 0) {
+      conflictBanner.hidden = false;
+      conflictBanner.textContent = `Học kỳ hiện tại (Đợt ${currentSemesterId}) chưa có môn đăng ký và chưa có lớp nào trong Trạm giám sát. Hãy bấm "Thêm giám sát" hoặc "Xem thử TKB" ở danh sách lớp mở để ướm thử lịch!`;
+    } else if (conflictCount > 0) {
+      conflictBanner.hidden = false;
+      conflictBanner.innerHTML = `Phát hiện <strong>${conflictCount} buổi học bị trùng tiết</strong> khi ghép lớp dự kiến! Vui lòng chọn nhóm lớp khác không trùng lịch. ${temporaryPreviewTarget ? '<button type="button" class="btn" style="margin-left: 8px; height: 26px;" onclick="clearTemporaryPreview()">Bỏ lớp đang xem thử</button>' : ''}`;
+    } else if (currentScheduleMode === "preview" && temporaryPreviewTarget) {
+      conflictBanner.hidden = false;
+      conflictBanner.innerHTML = `Đang xem thử lịch ghép của lớp <strong>${escapeHtml(temporaryPreviewTarget.ten_mon)} (${escapeHtml(temporaryPreviewTarget.ten_lop)})</strong> — Hoàn toàn khớp, không trùng tiết nào! <button type="button" class="btn" style="margin-left: 8px; height: 26px;" onclick="clearTemporaryPreview()">Bỏ xem thử</button>`;
+    } else if (currentScheduleMode === "preview" && previewCount > 0) {
+      conflictBanner.hidden = false;
+      conflictBanner.textContent = `Đang hiển thị kết hợp các môn đã đăng ký cùng ${previewCount} buổi học từ Trạm giám sát — Không phát hiện xung đột lịch học.`;
+    } else {
+      conflictBanner.hidden = true;
+      conflictBanner.textContent = "";
+    }
+  }
+
   const statMeta = document.getElementById("schedule-stat-meta");
   if (statMeta) {
-    statMeta.textContent = `${totalSlots} buổi học, Đợt ${currentSemesterId}`;
+    const regCount = scheduleData.registered_count !== undefined ? scheduleData.registered_count : 0;
+    statMeta.textContent = `${regCount} môn đã ĐK, ${totalSlots} buổi/tuần${previewCount > 0 ? ` (${previewCount} buổi dự kiến)` : ""}, Đợt ${currentSemesterId}`;
   }
 }
 

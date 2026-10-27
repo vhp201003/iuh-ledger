@@ -218,12 +218,11 @@ class IUHHTMLParser:
         row_pattern = re.compile(r'<tr[^>]*onclick=["\']SelectHocPhanDaDangKy\(this\);?["\'][^>]*>(.*?)</tr>', re.DOTALL | re.I)
         for m in row_pattern.finditer(active_html):
             row_body = m.group(1)
-            
             guid_m = re.search(r'data-guid=["\']([^"\']*)["\']', row_body)
             id_lhp_m = re.search(r'data-idlhpdk=["\']([^"\']*)["\']', row_body)
+            guid_lhp_m = re.search(r'XemChiTietLichHoc\s*\(\s*this\s*,\s*["\']([^"\']+)["\']', row_body)
 
             cells = [_clean_text(c.group(1)) for c in re.finditer(r'<td[^>]*>(.*?)</td>', row_body, re.DOTALL)]
-            
             # Main table has 13 cells:
             # [0:Thao tác, 1:STT, 2:Mã LHP, 3:Tên môn, 4:Lớp dự kiến, 5:TC, 6:Nhóm TH, 7:Học phí, 8:Hạn nộp, 9:Thu, 10:Trạng thái ĐK, 11:Ngày ĐK, 12:TT lớp HP]
             # Guard: cells[1] must be STT (digits) and cells[2] must be Mã LHP (digits)
@@ -240,7 +239,7 @@ class IUHHTMLParser:
                     trang_thai_dk=cells[10],
                     trang_thai_lhp=cells[12],
                     id_lhp_dk=id_lhp_m.group(1) if id_lhp_m else "",
-                    guid=guid_m.group(1) if guid_m else ""
+                    guid=guid_m.group(1) if guid_m else "",
+                    guid_lhp=guid_lhp_m.group(1) if guid_lhp_m else (guid_m.group(1) if guid_m else "")
                 ))
-
         return courses

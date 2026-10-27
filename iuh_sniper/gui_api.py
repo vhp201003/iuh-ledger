@@ -161,6 +161,10 @@ class BridgeAPI:
         self.config_path = config_path
         self.config = self._load_config()
         self.client = IUHClient(session_path=session_path)
+        try:
+            self.client.load_cookies()
+        except Exception:
+            pass
         self.catalog = CatalogService(self.client)
         self.registration = RegistrationService(self.client)
         self.radar = RadarService(self.client, id_dot=self.config.get("id_dot_dang_ky", "62"))
@@ -607,56 +611,206 @@ class BridgeAPI:
 
     def get_weekly_schedule(self, id_dot: str = "62", preview_classes: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
         """
-        Builds weekly timetable matrix ported from IUH XemLichHocTuan structure (Image #1).
-        Combines registered courses with optional preview target classes.
+        Builds weekly timetable matrix from actual registered courses in the semester,
+        plus optional preview target classes (e.g. from Watchdog queue or interactive class preview).
         """
-        slots: List[Dict[str, Any]] = []
+        raw_slots: List[Dict[str, Any]] = []
+        has_live_session = False
+        registered_count = 0
+
         try:
-            reg_res = self.registration.get_registered_courses(id_dot=str(id_dot))
-            for c in reg_res:
-                if not c.guid:
-                    continue
-                scheds = self.catalog.get_class_schedule(c.guid)
-                for s in scheds:
-                    parsed = self._parse_schedule_slot(s, c.ten_mon, c.ma_lhp, c.lop_du_kien, is_preview=False)
-                    if parsed:
-                        slots.append(parsed)
+            reg_res = self.catalog.get_registered_courses(id_dot=str(id_dot))
+            if reg_res is not None:
+                # Check if session actually returned courses or if client has valid session
+                if len(reg_res) > 0 or self.client.is_session_valid():
+                    has_live_session = True
+                registered_count = len(reg_res)
+
+            def _fetch_reg_sched(c_item):
+                g_lhp = getattr(c_item, "guid_lhp", "") or getattr(c_item, "guid", "")
+                if not g_lhp:
+                    return c_item, []
+                try:
+                    return c_item, self.catalog.get_class_schedule(g_lhp, timeout=10)
+                except Exception:
+                    return c_item, []
+
+            if reg_res:
+                with ThreadPoolExecutor(max_workers=4) as pool:
+                    for c_item, scheds in pool.map(_fetch_reg_sched, reg_res):
+                        c_nhom = extract_nhom_th_int(getattr(c_item, "nhom_th", None))
+                        for s in scheds:
+                            s_nhom = extract_nhom_th_int(getattr(s, "nhom_th", None))
+                            if s_nhom is not None and c_nhom is not None and s_nhom != c_nhom:
+                                continue
+                            parsed = self._parse_schedule_slot(
+                                s,
+                                c_item.ten_mon,
+                                c_item.ma_lhp,
+                                c_item.lop_du_kien,
+                                is_preview=False,
+                                selected_nhom=c_nhom
+                            )
+                            if parsed:
+                                raw_slots.append(parsed)
         except Exception:
             pass
 
-        # Fallback to authentic schedule template if no registered courses found or offline
-        if not slots:
-            slots = self._get_default_authentic_schedule()
+        # Fallback to authentic schedule template ONLY when offline / no live session and no preview
+        if not raw_slots and not has_live_session and not preview_classes:
+            raw_slots = self._get_default_authentic_schedule()
 
-        # Append preview classes if provided
+        # Append preview classes if provided (or from sniper targets belonging to id_dot)
         if preview_classes:
             for p in preview_classes:
+                p_dot = str(p.get("id_dot", id_dot))
+                if p_dot and p_dot != str(id_dot):
+                    continue
                 guid = p.get("guid_lhp", "")
                 ten_mon = p.get("ten_mon", "")
-                ma_lhp = p.get("ma_hp", "")
+                ma_lhp = p.get("ma_hp", "") or p.get("ma_lhp", "")
                 ten_lop = p.get("ten_lop", "")
+                p_nhom = extract_nhom_th_int(p.get("nhom_th"))
                 if guid:
                     try:
-                        p_scheds = self.catalog.get_class_schedule(guid)
+                        p_scheds = self.catalog.get_class_schedule(guid, timeout=10)
                         for ps in p_scheds:
-                            parsed = self._parse_schedule_slot(ps, ten_mon, ma_lhp, ten_lop, is_preview=True)
+                            s_nhom = extract_nhom_th_int(getattr(ps, "nhom_th", None))
+                            if s_nhom is not None and p_nhom is not None and s_nhom != p_nhom:
+                                continue
+                            parsed = self._parse_schedule_slot(
+                                ps,
+                                ten_mon,
+                                ma_lhp,
+                                ten_lop,
+                                is_preview=True,
+                                selected_nhom=p_nhom
+                            )
                             if parsed:
-                                slots.append(parsed)
+                                raw_slots.append(parsed)
                     except Exception:
                         pass
+
+        slots = self._dedupe_and_detect_conflicts(raw_slots)
+        conflict_count = sum(1 for sl in slots if sl.get("has_conflict"))
 
         return {
             "success": True,
             "id_dot": str(id_dot),
-            "week_range": "26/10/2026 - 01/11/2026",
+            "has_live_session": has_live_session,
+            "registered_count": registered_count,
+            "conflict_count": conflict_count,
             "slots": slots
         }
 
-    def _parse_schedule_slot(self, s: Any, ten_mon: str, ma_lhp: str, ten_lop: str, is_preview: bool = False) -> Optional[Dict[str, Any]]:
+    @staticmethod
+    def _parse_date_range(tg_str: str):
+        if not tg_str:
+            return None, None
+        from datetime import datetime
+        dates = re.findall(r'(\d{2}/\d{2}/\d{4})', str(tg_str))
+        if not dates:
+            return None, None
+        try:
+            parsed_dates = [datetime.strptime(d, "%d/%m/%Y") for d in dates]
+            return min(parsed_dates), max(parsed_dates)
+        except Exception:
+            return None, None
+
+    def _dedupe_and_detect_conflicts(self, raw_slots: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Merges multi-phase rows of the same course in the same (day, ca, ma_lhp, is_preview)
+        and detects true period + date-range overlaps between different courses on the same day.
+        """
+        merged_map: Dict[tuple, Dict[str, Any]] = {}
+        for sl in raw_slots:
+            key = (
+                sl.get("day"),
+                sl.get("ca"),
+                sl.get("ma_lhp") or sl.get("ten_mon"),
+                bool(sl.get("is_preview", False))
+            )
+            if key not in merged_map:
+                merged_map[key] = dict(sl)
+            else:
+                existing = merged_map[key]
+                # Expand period range if a makeup/sub-range exists in the same shift
+                st_old, en_old = existing.get("tiet_start", 0), existing.get("tiet_end", 0)
+                st_new, en_new = sl.get("tiet_start", 0), sl.get("tiet_end", 0)
+                if st_new and en_new:
+                    st_min = min(st_old, st_new) if st_old else st_new
+                    en_max = max(en_old, en_new) if en_old else en_new
+                    existing["tiet_start"] = st_min
+                    existing["tiet_end"] = en_max
+                    existing["tiet"] = f"{st_min} - {en_max}"
+
+                # Prefer physical room over "Trực tuyến" when a course has both phases, or combine rooms
+                p_new = sl.get("phong", "")
+                p_old = existing.get("phong", "")
+                if p_new and p_new not in p_old:
+                    if "trực tuyến" in p_old.lower() and "trực tuyến" not in p_new.lower():
+                        existing["phong"] = f"{p_new} (kèm lịch Trực tuyến)"
+                        if existing.get("loai") == "truc_tuyen":
+                            existing["loai"] = sl.get("loai", "ly_thuyet")
+                    elif "trực tuyến" in p_new.lower() and "trực tuyến" not in p_old.lower():
+                        if "Trực tuyến" not in existing["phong"]:
+                            existing["phong"] = f"{p_old} (kèm lịch Trực tuyến)"
+                    else:
+                        existing["phong"] = f"{p_old}, {p_new}"
+                t_new = sl.get("thoi_gian", "")
+                t_old = existing.get("thoi_gian", "")
+                if t_new and t_new not in t_old:
+                    existing["thoi_gian"] = f"{t_old}; {t_new}" if t_old else t_new
+
+        slots = list(merged_map.values())
+
+        # Detect period + date overlaps on the same day between distinct courses
+        for i, s1 in enumerate(slots):
+            s1["has_conflict"] = False
+            s1["conflict_with"] = []
+            d1 = s1.get("day")
+            st1 = s1.get("tiet_start", 0)
+            en1 = s1.get("tiet_end", 0)
+            id1 = s1.get("ma_lhp") or s1.get("ten_mon")
+            if not st1 or not en1:
+                continue
+            dt1_start, dt1_end = self._parse_date_range(s1.get("thoi_gian", ""))
+            for j, s2 in enumerate(slots):
+                if i == j or s2.get("day") != d1:
+                    continue
+                id2 = s2.get("ma_lhp") or s2.get("ten_mon")
+                if id1 == id2 and s1.get("is_preview") == s2.get("is_preview"):
+                    continue
+                st2 = s2.get("tiet_start", 0)
+                en2 = s2.get("tiet_end", 0)
+                if st2 and en2 and max(st1, st2) <= min(en1, en2):
+                    dt2_start, dt2_end = self._parse_date_range(s2.get("thoi_gian", ""))
+                    # Check date overlap if both have dates
+                    if dt1_start and dt1_end and dt2_start and dt2_end:
+                        if max(dt1_start, dt2_start) > min(dt1_end, dt2_end):
+                            continue
+                    s1["has_conflict"] = True
+                    other_name = s2.get("ten_mon", "Học phần khác")
+                    if other_name not in s1["conflict_with"]:
+                        s1["conflict_with"].append(other_name)
+
+        return slots
+
+    def _parse_schedule_slot(
+        self,
+        s: Any,
+        ten_mon: str,
+        ma_lhp: str,
+        ten_lop: str,
+        is_preview: bool = False,
+        selected_nhom: Optional[int] = None
+    ) -> Optional[Dict[str, Any]]:
         thu_tiet = getattr(s, "thu_tiet", "")
         phong = getattr(s, "phong", "")
         loai_tiet = getattr(s, "loai_tiet", "")
         gv = getattr(s, "giang_vien", "")
+        thoi_gian = getattr(s, "thoi_gian", "")
+        s_nhom = extract_nhom_th_int(getattr(s, "nhom_th", None))
 
         # Match Day
         m_day = re.search(r'(Thứ\s*[2-7]|Chủ\s*nhật)', thu_tiet, re.IGNORECASE)
@@ -692,12 +846,17 @@ class BridgeAPI:
         else:
             loai = "ly_thuyet"
 
-        ghi_chu = ""
+        ghi_chu_parts = []
+        if s_nhom is not None:
+            ghi_chu_parts.append(f"Nhóm TH {s_nhom}")
+        elif selected_nhom is not None and loai == "thuc_hanh":
+            ghi_chu_parts.append(f"Nhóm TH {selected_nhom}")
         if "teams" in phong.lower():
-            ghi_chu = "Học qua MS Teams"
+            ghi_chu_parts.append("MS Teams")
 
         full_lop = f"{ten_lop} - {ma_lhp}" if ma_lhp and ma_lhp not in ten_lop else ten_lop
-        full_phong = f"{phong} ({getattr(s, 'day_nha', '')})" if getattr(s, 'day_nha', '') and getattr(s, 'day_nha', '') not in phong else phong
+        day_nha = getattr(s, "day_nha", "")
+        full_phong = f"{phong} ({day_nha})" if day_nha and day_nha not in phong else phong
 
         return {
             "day": day_code,
@@ -706,13 +865,15 @@ class BridgeAPI:
             "ma_lhp": ma_lhp,
             "ten_lop": full_lop,
             "tiet": tiet_range,
+            "tiet_start": start_t,
+            "tiet_end": end_t,
             "phong": full_phong,
             "giang_vien": gv,
-            "ghi_chu": ghi_chu,
+            "thoi_gian": thoi_gian,
+            "ghi_chu": ", ".join(ghi_chu_parts),
             "loai": loai,
             "is_preview": is_preview
         }
-
     def _get_default_authentic_schedule(self) -> List[Dict[str, Any]]:
         return [
             {

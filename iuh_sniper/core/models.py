@@ -59,7 +59,7 @@ class RegisteredCourse:
     trang_thai_lhp: str
     id_lhp_dk: str
     guid: str
-
+    guid_lhp: str = ""
 @dataclass
 class StudentProfile:
     mssv: str

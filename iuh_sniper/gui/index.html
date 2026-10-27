@@ -213,6 +213,7 @@
                             <div class="btn-row-actions">
                               <button type="button" class="btn btn--accent-outline" onclick="triggerDirectRegister('62', 'CqLpKkViKTvbXLsCooUfPg', 1, 1, '', 'Âm nhạc, Nhạc lý và Guitar căn bản', 'DHSH20A_TCTA')">Đăng ký ngay</button>
                               <button type="button" class="btn" onclick="addTargetToQueue('62', '003634', '4297003634', 'Âm nhạc, Nhạc lý và Guitar căn bản', 'CqLpKkViKTvbXLsCooUfPg', 'DHSH20A_TCTA', 1, 1, '')">Thêm giám sát</button>
+                              <button type="button" class="btn" onclick="previewClassOnSchedule('62', '003634', '429700363401', 'Âm nhạc, Nhạc lý và Guitar căn bản', 'CqLpKkViKTvbXLsCooUfPg', 'DHSH20A_TCTA', 1)">Xem thử TKB</button>
                             </div>
                           </td>
                         </tr>
@@ -240,6 +241,7 @@
                             <div class="btn-row-actions">
                               <button type="button" class="btn btn--accent-outline" disabled>Đăng ký ngay</button>
                               <button type="button" class="btn" onclick="addTargetToQueue('62', '003634', '4297003634', 'Âm nhạc, Nhạc lý và Guitar căn bản', 'CqLpKkViKTvbXLsCooUfPg', 'DHSH20A_TCTA', 2, 1, '')">Tự động chờ lớp</button>
+                              <button type="button" class="btn" onclick="previewClassOnSchedule('62', '003634', '429700363401', 'Âm nhạc, Nhạc lý và Guitar căn bản', 'CqLpKkViKTvbXLsCooUfPg', 'DHSH20A_TCTA', 2)">Xem thử TKB</button>
                             </div>
                           </td>
                         </tr>
@@ -266,6 +268,7 @@
                             <div class="btn-row-actions">
                               <button type="button" class="btn btn--accent-outline" disabled>Đăng ký ngay</button>
                               <button type="button" class="btn" onclick="addTargetToQueue('62', '003634', '4297003634', 'Âm nhạc, Nhạc lý và Guitar căn bản', 'sLeefKjYzKhtMOL0u6nFtg', 'DHSH20B_TCTA', null, 1, '')">Tự động chờ lớp</button>
+                              <button type="button" class="btn" onclick="previewClassOnSchedule('62', '003634', '429700363402', 'Âm nhạc, Nhạc lý và Guitar căn bản', 'sLeefKjYzKhtMOL0u6nFtg', 'DHSH20B_TCTA', null)">Xem thử TKB</button>
                             </div>
                           </td>
                         </tr>
@@ -376,22 +379,25 @@
       <section class="ledger-section" id="view-schedule" aria-labelledby="heading-schedule" hidden>
         <div class="section-header">
           <div class="schedule-header-controls">
-            <h2 id="heading-schedule">Thời khóa biểu tuần (26/10/2026 - 01/11/2026)</h2>
+            <h2 id="heading-schedule">Thời khóa biểu tổng quan học kỳ</h2>
             <div class="btn-group-segmented" role="group" aria-label="Chế độ hiển thị thời khóa biểu">
-              <button type="button" class="btn btn-segmented active" id="btn-sched-mode-official" onclick="setScheduleMode('official')">Lịch chính thức</button>
-              <button type="button" class="btn btn-segmented" id="btn-sched-mode-preview" onclick="setScheduleMode('preview')">Lịch dự kiến ghép lớp</button>
+              <button type="button" class="btn btn-segmented active" id="btn-sched-mode-preview" onclick="setScheduleMode('preview')">Tổng quan ghép lớp (Đã ĐK + Dự kiến)</button>
+              <button type="button" class="btn btn-segmented" id="btn-sched-mode-official" onclick="setScheduleMode('official')">Chỉ lớp đã đăng ký</button>
             </div>
           </div>
-          <span class="mono" id="schedule-stat-meta">7 buổi học, 18 tín chỉ</span>
+          <span class="mono" id="schedule-stat-meta">Đang đồng bộ lịch học…</span>
         </div>
 
-        <!-- SCHEDULE CLASSIFICATION LEGEND (5 nhóm màu chuẩn từ cổng sv.iuh.edu.vn) -->
+        <div id="schedule-conflict-banner" class="inline-banner" role="status" aria-live="polite" hidden></div>
+
+        <!-- SCHEDULE CLASSIFICATION LEGEND (5 nhóm màu chuẩn từ cổng sv.iuh.edu.vn + Dự kiến + Trùng lịch) -->
         <div class="schedule-legend" aria-label="Chú giải phân loại lịch học">
           <div class="legend-item"><span class="legend-pill legend-pill--theory"></span><span>Lịch học lý thuyết</span></div>
           <div class="legend-item"><span class="legend-pill legend-pill--practice"></span><span>Lịch học thực hành</span></div>
           <div class="legend-item"><span class="legend-pill legend-pill--online"></span><span>Lịch học trực tuyến</span></div>
           <div class="legend-item"><span class="legend-pill legend-pill--exam"></span><span>Lịch thi</span></div>
-          <div class="legend-item"><span class="legend-pill legend-pill--suspended"></span><span>Lịch tạm ngưng</span></div>
+          <div class="legend-item"><span class="legend-pill legend-pill--preview"></span><span>Lớp dự kiến (Trạm giám sát / Xem thử)</span></div>
+          <div class="legend-item"><span class="legend-pill legend-pill--conflict"></span><span>Trùng tiết học</span></div>
         </div>
 
         <!-- TIMETABLE GRID MATRIX (7 ngày x 3 ca học: Sáng, Chiều, Tối) -->
@@ -400,13 +406,13 @@
             <thead>
               <tr>
                 <th scope="col" class="th-shift">Ca học</th>
-                <th scope="col" class="th-weekday">Thứ 2<span class="date-chip">26/10/2026</span></th>
-                <th scope="col" class="th-weekday">Thứ 3<span class="date-chip">27/10/2026</span></th>
-                <th scope="col" class="th-weekday">Thứ 4<span class="date-chip">28/10/2026</span></th>
-                <th scope="col" class="th-weekday">Thứ 5<span class="date-chip">29/10/2026</span></th>
-                <th scope="col" class="th-weekday">Thứ 6<span class="date-chip">30/10/2026</span></th>
-                <th scope="col" class="th-weekday">Thứ 7<span class="date-chip">31/10/2026</span></th>
-                <th scope="col" class="th-weekday">Chủ nhật<span class="date-chip">01/11/2026</span></th>
+                <th scope="col" class="th-weekday">Thứ 2</th>
+                <th scope="col" class="th-weekday">Thứ 3</th>
+                <th scope="col" class="th-weekday">Thứ 4</th>
+                <th scope="col" class="th-weekday">Thứ 5</th>
+                <th scope="col" class="th-weekday">Thứ 6</th>
+                <th scope="col" class="th-weekday">Thứ 7</th>
+                <th scope="col" class="th-weekday">Chủ nhật</th>
               </tr>
             </thead>
             <tbody>

@@ -311,24 +311,50 @@ class TestIUHSniperE2E(unittest.TestCase):
             self.assertIn("loai", first_slot)
             self.assertFalse(first_slot["is_preview"])
 
-            # 4. Preview schedule integration
+            # 4. Registered + Preview schedule integration & Conflict Detection
+            from iuh_sniper.core.models import RegisteredCourse
             preview_class = {
+                "id_dot": "62",
                 "guid_lhp": "PREVIEW_GUID",
                 "ten_mon": "Lập trình Web",
                 "ma_hp": "429709999",
-                "ten_lop": "DHKTPM18A"
+                "ten_lop": "DHKTPM18A",
+                "nhom_th": 1
             }
-            # Mock catalog class schedule
             class MockCatalog:
-                def get_class_schedule(self, guid):
-                    return [ClassSchedule(stt="1", loai_tiet="LT", thu_tiet="Thứ 5 (Tiết 1 -> 3)", nhom_th="", phong="A1.02", day_nha="A", co_so="1", giang_vien="TS Trần", thoi_gian="")]
+                def get_registered_courses(self, id_dot="62"):
+                    return [
+                        RegisteredCourse(
+                            stt="1", ma_lhp="429701111", ten_mon="Cơ sở dữ liệu",
+                            lop_du_kien="DHKTPM18A", so_tc=3, nhom_th="1", hoc_phi="3.600.000",
+                            han_nop="", trang_thai_dk="Đăng ký mới", trang_thai_lhp="Đã khóa",
+                            id_lhp_dk="1001", guid="GUID_DK_1", guid_lhp="REG_GUID_1"
+                        )
+                    ]
+                def get_class_schedule(self, guid, timeout=10):
+                    if guid == "REG_GUID_1":
+                        return [
+                            ClassSchedule(stt="1", loai_tiet="LT", thu_tiet="Thứ 5 (Tiết 1 -> 3)", nhom_th="", phong="A1.02", day_nha="A", co_so="1", giang_vien="TS Nguyễn", thoi_gian="01/01/2026 - 01/05/2026"),
+                            ClassSchedule(stt="2", loai_tiet="TH", thu_tiet="Thứ 6 (Tiết 1 -> 3)", nhom_th="2", phong="H7.01", day_nha="H", co_so="1", giang_vien="TS Nguyễn", thoi_gian="01/01/2026 - 01/05/2026")
+                        ]
+                    return [
+                        ClassSchedule(stt="1", loai_tiet="LT", thu_tiet="Thứ 5 (Tiết 2 -> 4)", nhom_th="", phong="B2.04", day_nha="B", co_so="1", giang_vien="TS Trần", thoi_gian="01/01/2026 - 01/05/2026")
+                    ]
             bridge.catalog = MockCatalog()
             p_res = bridge.get_weekly_schedule(id_dot="62", preview_classes=[preview_class])
+            self.assertEqual(p_res["registered_count"], 1)
+            # Group 2 TH row of REG_GUID_1 must be filtered out because student registered in nhom_th=1
+            reg_slots = [s for s in p_res["slots"] if not s.get("is_preview")]
+            self.assertEqual(len(reg_slots), 1)
             preview_slots = [s for s in p_res["slots"] if s.get("is_preview")]
             self.assertEqual(len(preview_slots), 1)
             self.assertEqual(preview_slots[0]["day"], "5")
             self.assertEqual(preview_slots[0]["ca"], "sang")
             self.assertEqual(preview_slots[0]["ten_mon"], "Lập trình Web")
+            # Period 1-3 and Period 2-4 on Thursday overlap -> conflict detected!
+            self.assertTrue(preview_slots[0]["has_conflict"])
+            self.assertIn("Cơ sở dữ liệu", preview_slots[0]["conflict_with"])
+            self.assertEqual(p_res["conflict_count"], 2)
         finally:
             if os.path.exists(tmp_cfg):
                 os.remove(tmp_cfg)

@@ -707,6 +707,15 @@ body {
   border-color: var(--color-sched-suspended-border);
 }
 
+.legend-pill--preview {
+  background-color: var(--color-accent-soft);
+  border: 2px dashed var(--color-accent-deep);
+}
+
+.legend-pill--conflict {
+  background-color: var(--color-sched-suspended-bg);
+  border: 2px solid var(--color-error);
+}
 .schedule-scroll-wrap {
   width: 100%;
   overflow-x: auto;
@@ -828,9 +837,20 @@ body {
 .sched-card--preview {
   border-style: dashed;
   border-width: 2px;
-  outline: var(--rule-hair) solid var(--color-accent);
+  border-color: var(--color-accent-deep);
 }
 
+.sched-card--conflict {
+  background-color: var(--color-sched-suspended-bg);
+  border: 2px solid var(--color-error);
+  color: var(--color-sched-suspended-ink);
+}
+
+.stamp-badge--conflict {
+  background-color: var(--color-error);
+  color: var(--light);
+  border-color: var(--color-error);
+}
 .sched-card__title {
   font-weight: 700;
   font-size: 11px;
