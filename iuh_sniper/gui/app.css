@@ -16,10 +16,10 @@ body {
   width: 100%;
   max-width: var(--container);
   margin-inline: auto;
-  padding: var(--space-lg) var(--gutter) var(--space-2xl);
+  padding: var(--space-md) var(--gutter) var(--space-xl);
   display: flex;
   flex-direction: column;
-  gap: var(--space-xl);
+  gap: var(--space-lg);
 }
 
 .topbar {
@@ -102,7 +102,7 @@ body {
   display: flex;
   align-items: center;
   gap: var(--space-sm);
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 
 .control-group {
@@ -186,14 +186,16 @@ body {
 .student-bar {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  padding-block: var(--space-md);
-  border-bottom: var(--rule-hair) solid var(--color-rule);
+  padding: var(--space-md) var(--space-lg);
+  background-color: var(--color-paper-2);
+  border: var(--rule-hair) solid var(--color-rule);
+  border-radius: var(--radius-card);
 }
 
 .stat-item {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2xs);
+  gap: var(--space-3xs);
   padding-inline: var(--space-md);
   border-left: var(--rule-hair) solid var(--color-rule);
 }
@@ -256,7 +258,21 @@ body {
   gap: var(--space-md);
   padding: var(--space-sm) var(--space-md);
   background-color: var(--color-paper-2);
+  border: var(--rule-hair) solid var(--color-rule);
   border-radius: var(--radius-card);
+  flex-wrap: wrap;
+}
+
+.filter-bar__left {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+  flex: 1 1 auto;
+}
+
+.filter-search-input {
+  min-width: 260px;
 }
 
 .ledger-table {
@@ -293,17 +309,39 @@ body {
 
 .ledger-row--selected,
 .ledger-row[aria-expanded="true"] {
-  background-color: var(--color-accent-soft);
+  background-color: var(--color-paper-3);
+  font-weight: 600;
+}
+
+.ledger-row--selected td:first-child,
+.ledger-row[aria-expanded="true"] td:first-child {
+  box-shadow: inset 4px 0 0 var(--color-accent-deep);
 }
 
 .class-drawer {
   background-color: var(--color-paper-2);
-  padding: var(--space-sm);
+  padding: var(--space-md) var(--space-lg);
+}
+
+.drawer-inner-card {
+  background-color: var(--light);
+  border: var(--rule-hair) solid var(--color-rule);
+  border-radius: var(--radius-card);
+  padding: var(--space-xs) var(--space-sm);
 }
 
 .class-drawer .ledger-table th,
 .class-drawer .ledger-table td {
-  padding: var(--space-xs) var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+}
+
+.drawer-subtable tr:last-child td {
+  border-bottom: 0;
+}
+
+.num {
+  font-family: var(--font-outlier);
+  font-variant-numeric: tabular-nums;
 }
 
 .plastic-tray {

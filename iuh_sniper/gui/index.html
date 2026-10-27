@@ -52,40 +52,11 @@
       </div>
 
       <div class="topbar__right">
-        <div class="control-group">
-          <label for="semester-select" class="control-label">Học kỳ</label>
-          <select id="semester-select" name="semester" class="field-select" onchange="onSemesterChange(this.value)">
-            <option value="66">HK3 (2026 - 2027)</option>
-            <option value="65">HK2 (2026 - 2027)</option>
-            <option value="64">HK1 (2026 - 2027)</option>
-            <option value="63">HK3 (2025 - 2026)</option>
-            <option value="62" selected>HK2 (2025 - 2026)</option>
-            <option value="61">HK1 (2025 - 2026)</option>
-            <option value="60">HK3 (2024 - 2025)</option>
-            <option value="59">HK2 (2024 - 2025)</option>
-            <option value="58">HK1 (2024 - 2025)</option>
-          </select>
-        </div>
-
-        <div class="control-group">
-          <label for="loai-dk-select" class="control-label">Loại học</label>
-          <select id="loai-dk-select" name="loai_dk" class="field-select" onchange="onFilterChange()">
-            <option value="1" selected>Học mới</option>
-            <option value="2">Học lại</option>
-            <option value="3">Học cải thiện</option>
-          </select>
-        </div>
-
-        <label for="chk-no-conflict" class="checkbox-control">
-          <input type="checkbox" id="chk-no-conflict" name="no_conflict" onchange="onFilterChange()">
-          <span>Không trùng lịch</span>
-        </label>
-
         <button type="button" class="btn" id="btn-radar-toggle" onclick="toggleRadar()">
           <span id="radar-label">Duy trì phiên nền</span>
         </button>
 
-        <button type="button" class="btn" id="btn-auth-modal" onclick="openLoginModal()">
+        <button type="button" class="btn btn--primary" id="btn-auth-modal" onclick="openLoginModal()">
           Xác thực tài khoản
         </button>
       </div>
@@ -115,14 +86,46 @@
       <section class="ledger-section" id="view-open" aria-labelledby="heading-open-subjects">
         <div class="section-header">
           <h1 id="heading-open-subjects">22 môn học mở trong kỳ</h1>
-          <span class="mono" id="subject-count-meta">Đợt 62 · Học mới</span>
+          <span class="mono" id="subject-count-meta">Đợt 62, Học mới</span>
         </div>
 
         <div class="filter-bar">
-          <div class="control-group">
-            <label for="subject-search" class="control-label">Tìm môn</label>
-            <input type="search" id="subject-search" name="search" class="field-input" placeholder="Nhập tên hoặc mã môn…" oninput="filterSubjects(this.value)">
+          <div class="filter-bar__left">
+            <div class="control-group filter-search-group">
+              <label for="subject-search" class="control-label">Tìm môn</label>
+              <input type="search" id="subject-search" name="search" class="field-input filter-search-input" placeholder="Nhập tên hoặc mã môn học phần…" oninput="filterSubjects(this.value)">
+            </div>
+
+            <div class="control-group">
+              <label for="semester-select" class="control-label">Học kỳ</label>
+              <select id="semester-select" name="semester" class="field-select" onchange="onSemesterChange(this.value)">
+                <option value="66">HK3 (2026 - 2027)</option>
+                <option value="65">HK2 (2026 - 2027)</option>
+                <option value="64">HK1 (2026 - 2027)</option>
+                <option value="63">HK3 (2025 - 2026)</option>
+                <option value="62" selected>HK2 (2025 - 2026)</option>
+                <option value="61">HK1 (2025 - 2026)</option>
+                <option value="60">HK3 (2024 - 2025)</option>
+                <option value="59">HK2 (2024 - 2025)</option>
+                <option value="58">HK1 (2024 - 2025)</option>
+              </select>
+            </div>
+
+            <div class="control-group">
+              <label for="loai-dk-select" class="control-label">Loại học</label>
+              <select id="loai-dk-select" name="loai_dk" class="field-select" onchange="onFilterChange()">
+                <option value="1" selected>Học mới</option>
+                <option value="2">Học lại</option>
+                <option value="3">Học cải thiện</option>
+              </select>
+            </div>
+
+            <label for="chk-no-conflict" class="checkbox-control">
+              <input type="checkbox" id="chk-no-conflict" name="no_conflict" onchange="onFilterChange()">
+              <span>Lọc lớp không trùng lịch</span>
+            </label>
           </div>
+
           <button type="button" class="btn" onclick="reloadSubjects()">Làm mới danh mục</button>
         </div>
 
@@ -172,100 +175,103 @@
               </tr>
               <tr id="drawer-003634">
                 <td colspan="4" class="class-drawer">
-                  <table class="ledger-table" aria-label="Danh sách lớp học phần Âm nhạc">
-                    <thead>
-                      <tr>
-                        <th scope="col">Lớp &amp; Mã LHP</th>
-                        <th scope="col">Nhóm TH</th>
-                        <th scope="col">Lịch học &amp; Phòng (LT + TH)</th>
-                        <th scope="col">Giảng viên</th>
-                        <th scope="col">Sĩ số</th>
-                        <th scope="col">Thao tác</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr>
-                        <td>
-                          <div class="mono">DHSH20A_TCTA</div>
-                          <div class="schedule-meta">Mã LHP: 429700363401</div>
-                        </td>
-                        <td><span class="stamp-badge stamp-badge--neutral">Nhóm TH 1</span></td>
-                        <td>
-                          <div class="schedule-stack">
-                            <div class="schedule-line">LT: Thứ 3 (Tiết 7 - 9) · Phòng N4.6 CLC</div>
-                            <div class="schedule-line">TH: Thứ 5 (Tiết 1 - 3) · Phòng H7.01</div>
-                            <div class="schedule-meta">Cơ sở 1 · 13/01/2026 - 07/04/2026</div>
-                          </div>
-                        </td>
-                        <td>
-                          <div class="lecturer-name">LT: TS Phan Trần Minh Khuê · TH: DH Lìu Cẩm Bình</div>
-                        </td>
-                        <td>
-                          <div class="mono">18 / 45</div>
-                          <div><span class="stamp-badge">Còn 27 chỗ</span></div>
-                        </td>
-                        <td>
-                          <div class="btn-row-actions">
-                            <button type="button" class="btn btn--accent-outline" onclick="triggerDirectRegister('62', 'CqLpKkViKTvbXLsCooUfPg', 1, 1, '', 'Âm nhạc, Nhạc lý và Guitar căn bản', 'DHSH20A_TCTA')">Đăng ký ngay</button>
-                            <button type="button" class="btn" onclick="addTargetToQueue('62', '003634', '4297003634', 'Âm nhạc, Nhạc lý và Guitar căn bản', 'CqLpKkViKTvbXLsCooUfPg', 'DHSH20A_TCTA', 1, 1, '')">Đưa vào khay săn</button>
-                          </div>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td>
-                          <div class="mono">DHSH20A_TCTA</div>
-                          <div class="schedule-meta">Mã LHP: 429700363401</div>
-                        </td>
-                        <td><span class="stamp-badge stamp-badge--neutral">Nhóm TH 2</span></td>
-                        <td>
-                          <div class="schedule-stack">
-                            <div class="schedule-line">LT: Thứ 3 (Tiết 7 - 9) · Phòng N4.6 CLC</div>
-                            <div class="schedule-line">TH: Thứ 6 (Tiết 4 - 6) · Phòng H7.02</div>
-                            <div class="schedule-meta">Cơ sở 1 · 13/01/2026 - 07/04/2026</div>
-                          </div>
-                        </td>
-                        <td>
-                          <div class="lecturer-name">TS Phan Trần Minh Khuê</div>
-                        </td>
-                        <td>
-                          <div class="mono">45 / 45</div>
-                          <div><span class="stamp-badge stamp-badge--neutral">Đã đủ sĩ số</span></div>
-                        </td>
-                        <td>
-                          <div class="btn-row-actions">
-                            <button type="button" class="btn btn--accent-outline" disabled>Đăng ký ngay</button>
-                            <button type="button" class="btn" onclick="addTargetToQueue('62', '003634', '4297003634', 'Âm nhạc, Nhạc lý và Guitar căn bản', 'CqLpKkViKTvbXLsCooUfPg', 'DHSH20A_TCTA', 2, 1, '')">Canh người nhả</button>
-                          </div>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td>
-                          <div class="mono">DHSH20B_TCTA</div>
-                          <div class="schedule-meta">Mã LHP: 429700363402</div>
-                        </td>
-                        <td><span class="stamp-badge stamp-badge--neutral">Thuần LT</span></td>
-                        <td>
-                          <div class="schedule-stack">
-                            <div class="schedule-line">LT: Thứ 4 (Tiết 1 - 3) · Phòng H7.02</div>
-                            <div class="schedule-meta">Cơ sở 1 · 15/01/2026 - 09/04/2026</div>
-                          </div>
-                        </td>
-                        <td>
-                          <div class="lecturer-name">DH Lìu Cẩm Bình</div>
-                        </td>
-                        <td>
-                          <div class="mono">45 / 45</div>
-                          <div><span class="stamp-badge stamp-badge--neutral">Đã đủ sĩ số</span></div>
-                        </td>
-                        <td>
-                          <div class="btn-row-actions">
-                            <button type="button" class="btn btn--accent-outline" disabled>Đăng ký ngay</button>
-                            <button type="button" class="btn" onclick="addTargetToQueue('62', '003634', '4297003634', 'Âm nhạc, Nhạc lý và Guitar căn bản', 'sLeefKjYzKhtMOL0u6nFtg', 'DHSH20B_TCTA', null, 1, '')">Canh người nhả</button>
-                          </div>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
+                  <div class="drawer-inner-card">
+                    <table class="ledger-table drawer-subtable" aria-label="Danh sách lớp học phần Âm nhạc">
+                      <thead>
+                        <tr>
+                          <th scope="col">Lớp &amp; Mã LHP</th>
+                          <th scope="col">Nhóm TH</th>
+                          <th scope="col">Lịch học &amp; Phòng (LT + TH)</th>
+                          <th scope="col">Giảng viên</th>
+                          <th scope="col">Sĩ số</th>
+                          <th scope="col">Thao tác</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          <td>
+                            <div class="mono">DHSH20A_TCTA</div>
+                            <div class="schedule-meta">Mã LHP: 429700363401</div>
+                          </td>
+                          <td><span class="stamp-badge stamp-badge--neutral">Nhóm TH 1</span></td>
+                          <td>
+                            <div class="schedule-stack">
+                              <div class="schedule-line">LT: Thứ 3 (Tiết 7 - 9), Phòng N4.6 CLC</div>
+                              <div class="schedule-line">TH: Thứ 5 (Tiết 1 - 3), Phòng H7.01</div>
+                              <div class="schedule-meta">Cơ sở 1, 13/01/2026 - 07/04/2026</div>
+                            </div>
+                          </td>
+                          <td>
+                            <div class="lecturer-name">LT: TS Phan Trần Minh Khuê</div>
+                            <div class="schedule-meta">TH: DH Lìu Cẩm Bình</div>
+                          </td>
+                          <td>
+                            <div class="mono">18 / 45</div>
+                            <div><span class="stamp-badge">Còn 27 chỗ</span></div>
+                          </td>
+                          <td>
+                            <div class="btn-row-actions">
+                              <button type="button" class="btn btn--accent-outline" onclick="triggerDirectRegister('62', 'CqLpKkViKTvbXLsCooUfPg', 1, 1, '', 'Âm nhạc, Nhạc lý và Guitar căn bản', 'DHSH20A_TCTA')">Đăng ký ngay</button>
+                              <button type="button" class="btn" onclick="addTargetToQueue('62', '003634', '4297003634', 'Âm nhạc, Nhạc lý và Guitar căn bản', 'CqLpKkViKTvbXLsCooUfPg', 'DHSH20A_TCTA', 1, 1, '')">Thêm giám sát</button>
+                            </div>
+                          </td>
+                        </tr>
+                        <tr>
+                          <td>
+                            <div class="mono">DHSH20A_TCTA</div>
+                            <div class="schedule-meta">Mã LHP: 429700363401</div>
+                          </td>
+                          <td><span class="stamp-badge stamp-badge--neutral">Nhóm TH 2</span></td>
+                          <td>
+                            <div class="schedule-stack">
+                              <div class="schedule-line">LT: Thứ 3 (Tiết 7 - 9), Phòng N4.6 CLC</div>
+                              <div class="schedule-line">TH: Thứ 6 (Tiết 4 - 6), Phòng H7.02</div>
+                              <div class="schedule-meta">Cơ sở 1, 13/01/2026 - 07/04/2026</div>
+                            </div>
+                          </td>
+                          <td>
+                            <div class="lecturer-name">TS Phan Trần Minh Khuê</div>
+                          </td>
+                          <td>
+                            <div class="mono">45 / 45</div>
+                            <div><span class="stamp-badge stamp-badge--neutral">Đã đủ sĩ số</span></div>
+                          </td>
+                          <td>
+                            <div class="btn-row-actions">
+                              <button type="button" class="btn btn--accent-outline" disabled>Đăng ký ngay</button>
+                              <button type="button" class="btn" onclick="addTargetToQueue('62', '003634', '4297003634', 'Âm nhạc, Nhạc lý và Guitar căn bản', 'CqLpKkViKTvbXLsCooUfPg', 'DHSH20A_TCTA', 2, 1, '')">Tự động chờ lớp</button>
+                            </div>
+                          </td>
+                        </tr>
+                        <tr>
+                          <td>
+                            <div class="mono">DHSH20B_TCTA</div>
+                            <div class="schedule-meta">Mã LHP: 429700363402</div>
+                          </td>
+                          <td><span class="stamp-badge stamp-badge--neutral">Thuần LT</span></td>
+                          <td>
+                            <div class="schedule-stack">
+                              <div class="schedule-line">LT: Thứ 4 (Tiết 1 - 3), Phòng H7.02</div>
+                              <div class="schedule-meta">Cơ sở 1, 15/01/2026 - 09/04/2026</div>
+                            </div>
+                          </td>
+                          <td>
+                            <div class="lecturer-name">DH Lìu Cẩm Bình</div>
+                          </td>
+                          <td>
+                            <div class="mono">45 / 45</div>
+                            <div><span class="stamp-badge stamp-badge--neutral">Đã đủ sĩ số</span></div>
+                          </td>
+                          <td>
+                            <div class="btn-row-actions">
+                              <button type="button" class="btn btn--accent-outline" disabled>Đăng ký ngay</button>
+                              <button type="button" class="btn" onclick="addTargetToQueue('62', '003634', '4297003634', 'Âm nhạc, Nhạc lý và Guitar căn bản', 'sLeefKjYzKhtMOL0u6nFtg', 'DHSH20B_TCTA', null, 1, '')">Tự động chờ lớp</button>
+                            </div>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
                 </td>
               </tr>
               <tr class="ledger-row" data-mamh="013803" data-mahp="4297013803" data-mamoncha="" tabindex="0" aria-expanded="false" onmouseenter="prefetchSubjectClasses('013803', '4297013803', 'Chủ nghĩa xã hội khoa học', '')" onclick="inspectSubjectClasses('013803', '4297013803', 'Chủ nghĩa xã hội khoa học', '')" onkeydown="handleRowKey(event, '013803', '4297013803', 'Chủ nghĩa xã hội khoa học', '')">
@@ -376,7 +382,7 @@
               <button type="button" class="btn btn-segmented" id="btn-sched-mode-preview" onclick="setScheduleMode('preview')">Lịch dự kiến ghép lớp</button>
             </div>
           </div>
-          <span class="mono" id="schedule-stat-meta">7 buổi học · 18 tín chỉ</span>
+          <span class="mono" id="schedule-stat-meta">7 buổi học, 18 tín chỉ</span>
         </div>
 
         <!-- SCHEDULE CLASSIFICATION LEGEND (5 nhóm màu chuẩn từ cổng sv.iuh.edu.vn) -->
@@ -504,7 +510,7 @@
             </div>
 
             <div class="btn-row-actions">
-              <button type="button" class="btn btn--primary" id="btn-sniper-start" onclick="toggleSniperLoop()">
+              <button type="button" class="btn btn--accent-outline" id="btn-sniper-start" onclick="toggleSniperLoop()">
                 Kích hoạt tự động ghi danh
               </button>
               <button type="button" class="btn" onclick="runSniperSweepOnce()">
@@ -609,13 +615,13 @@
             <div class="ticket-stub">
               <div>
                 <strong>Cổng trường sv.iuh.edu.vn</strong>
-                <div class="schedule-meta" id="settings-session-summary">Tài khoản 24687201 · Session hoạt động</div>
+                <div class="schedule-meta" id="settings-session-summary">Tài khoản 24687201, Session hoạt động</div>
               </div>
               <button type="button" class="btn" onclick="openLoginModal()">Xác thực lại</button>
             </div>
 
             <div class="btn-row-actions" style="margin-top: var(--space-lg);">
-              <button type="button" class="btn btn--primary" id="btn-save-settings" onclick="saveSettingsFromForm()">
+              <button type="button" class="btn btn--accent-outline" id="btn-save-settings" onclick="saveSettingsFromForm()">
                 Lưu cấu hình hệ thống
               </button>
               <button type="button" class="btn" onclick="testNotificationChime()">
@@ -640,7 +646,7 @@
       <div class="ticket-stub" id="modal-session-diag" style="margin-bottom: var(--space-sm);">
         <div>
           <strong>Trạng thái phiên làm việc</strong>
-          <div class="schedule-meta" id="modal-session-text">Đang kết nối: sv.iuh.edu.vn · Cookie ASC.AUTH</div>
+          <div class="schedule-meta" id="modal-session-text">Đang kết nối: sv.iuh.edu.vn, Cookie ASC.AUTH</div>
         </div>
         <button type="button" class="btn" style="height: 28px; padding-inline: var(--space-xs); font-size: var(--text-xs);" onclick="logoutSession()">Đăng xuất</button>
       </div>
@@ -670,7 +676,7 @@
       </div>
 
       <div class="btn-row-actions">
-        <button type="submit" class="btn btn--primary" id="btn-submit-login">
+        <button type="submit" class="btn btn--accent-outline" id="btn-submit-login">
           Đăng nhập và lưu phiên
         </button>
         <button type="button" class="btn" onclick="closeLoginModal()">

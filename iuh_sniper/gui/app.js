@@ -18,10 +18,10 @@ function updateSniperTabBadge() {
   const heading = document.getElementById("heading-sniper-station");
   const count = (sniperTargets && sniperTargets.length) || 0;
   if (tabSniper) {
-    tabSniper.textContent = sniperActive ? `Trạm canh lớp (${count}) [Đang quét]` : `Trạm canh lớp (${count})`;
+    tabSniper.textContent = sniperActive ? `Trạm giám sát (${count}) [Đang quét]` : `Trạm giám sát (${count})`;
   }
   if (heading) {
-    heading.textContent = `Danh sách mục tiêu canh lớp (${count})`;
+    heading.textContent = `Hàng đợi mục tiêu giám sát (${count})`;
   }
 }
 function getSubjectCacheKey(idDot, maMon, loaiDk, noConflict) {
@@ -254,48 +254,50 @@ async function inspectSubjectClasses(maMon, maHp, tenMon, maMonCha = "", forceRe
       fallbackDrawer.id = "drawer-" + maMon;
       fallbackDrawer.innerHTML = `
         <td colspan="4" class="class-drawer">
-          <div class="drawer-toolbar">
-            <span>Chi tiết học phần ${escapeHtml(tenMon)} (${escapeHtml(maHp)})</span>
-            <span>Chế độ xem trước</span>
+          <div class="drawer-inner-card">
+            <div class="drawer-toolbar">
+              <span>Chi tiết học phần ${escapeHtml(tenMon)} (${escapeHtml(maHp)})</span>
+              <span>Chế độ xem trước</span>
+            </div>
+            <table class="ledger-table drawer-subtable" aria-label="Danh sách lớp học phần ${escapeAttr(tenMon)}">
+              <thead>
+                <tr>
+                  <th scope="col">Lớp &amp; Mã LHP</th>
+                  <th scope="col">Nhóm TH</th>
+                  <th scope="col">Lịch học &amp; Phòng (LT + TH)</th>
+                  <th scope="col">Giảng viên</th>
+                  <th scope="col">Sĩ số</th>
+                  <th scope="col">Thao tác</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>
+                    <div class="mono">DHLOP_${escapeHtml(maMon)}</div>
+                    <div class="schedule-meta">Mã LHP: ${escapeHtml(maHp)}01</div>
+                  </td>
+                  <td><span class="stamp-badge stamp-badge--neutral">Thuần LT</span></td>
+                  <td>
+                    <div class="schedule-stack">
+                      <div class="schedule-line">LT: Thứ 2 (Tiết 1 - 3), Phòng B2.04</div>
+                      <div class="schedule-meta">Cơ sở 1, 13/01/2026 - 07/04/2026</div>
+                    </div>
+                  </td>
+                  <td><div class="lecturer-name">PGS.TS Nguyễn Minh Tuấn</div></td>
+                  <td>
+                    <div class="mono">24 / 45</div>
+                    <div><span class="stamp-badge">Còn 21 chỗ</span></div>
+                  </td>
+                  <td>
+                    <div class="btn-row-actions">
+                      <button type="button" class="btn btn--accent-outline" onclick="triggerDirectRegister('${escapeAttr(currentSemesterId)}', 'GUID_${escapeAttr(maMon)}', null, ${currentLoaiDk}, '', '${escapeAttr(tenMon)}', 'DHLOP_${escapeAttr(maMon)}')">Đăng ký ngay</button>
+                      <button type="button" class="btn" onclick="addTargetToQueue('${escapeAttr(currentSemesterId)}', '${escapeAttr(maMon)}', '${escapeAttr(maHp)}', '${escapeAttr(tenMon)}', 'GUID_${escapeAttr(maMon)}', 'DHLOP_${escapeAttr(maMon)}', null, ${currentLoaiDk}, '')">Thêm giám sát</button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
-          <table class="ledger-table" aria-label="Danh sách lớp học phần ${escapeAttr(tenMon)}">
-            <thead>
-              <tr>
-                <th scope="col">Lớp &amp; Mã LHP</th>
-                <th scope="col">Nhóm TH</th>
-                <th scope="col">Lịch học &amp; Phòng (LT + TH)</th>
-                <th scope="col">Giảng viên</th>
-                <th scope="col">Sĩ số</th>
-                <th scope="col">Thao tác</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>
-                  <div class="mono">DHLOP_${escapeHtml(maMon)}</div>
-                  <div class="schedule-meta">Mã LHP: ${escapeHtml(maHp)}01</div>
-                </td>
-                <td><span class="stamp-badge stamp-badge--neutral">Thuần LT</span></td>
-                <td>
-                  <div class="schedule-stack">
-                    <div class="schedule-line">LT: Thứ 2 (Tiết 1 - 3) · Phòng B2.04</div>
-                    <div class="schedule-meta">Cơ sở 1, 13/01/2026 - 07/04/2026</div>
-                  </div>
-                </td>
-                <td><div class="lecturer-name">PGS.TS Nguyễn Minh Tuấn</div></td>
-                <td>
-                  <div class="mono">24 / 45</div>
-                  <div><span class="stamp-badge">Còn 21 chỗ</span></div>
-                </td>
-                <td>
-                  <div class="btn-row-actions">
-                    <button type="button" class="btn btn--accent-outline" onclick="triggerDirectRegister('${escapeAttr(currentSemesterId)}', 'GUID_${escapeAttr(maMon)}', null, ${currentLoaiDk}, '', '${escapeAttr(tenMon)}', 'DHLOP_${escapeAttr(maMon)}')">Đăng ký ngay</button>
-                    <button type="button" class="btn" onclick="addTargetToQueue('${escapeAttr(currentSemesterId)}', '${escapeAttr(maMon)}', '${escapeAttr(maHp)}', '${escapeAttr(tenMon)}', 'GUID_${escapeAttr(maMon)}', 'DHLOP_${escapeAttr(maMon)}', null, ${currentLoaiDk}, '')">Đưa vào khay săn</button>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
         </td>
       `;
       targetRow.classList.add("ledger-row--selected");
@@ -352,23 +354,25 @@ async function inspectSubjectClasses(maMon, maHp, tenMon, maMonCha = "", forceRe
     if (drawerTr) {
       drawerTr.innerHTML = `
         <td colspan="4" class="class-drawer">
-          <div class="drawer-toolbar">
-            <span>Đã đồng bộ ${rows.length} nhóm lớp cho học phần ${escapeHtml(tenMon)}</span>
-            <button type="button" class="btn" onclick="event.stopPropagation(); inspectSubjectClasses('${escapeAttr(maMon)}', '${escapeAttr(maHp)}', '${escapeAttr(tenMon)}', '${escapeAttr(maMonCha || "")}', true)">Làm mới sĩ số</button>
+          <div class="drawer-inner-card">
+            <div class="drawer-toolbar">
+              <span>Đã đồng bộ ${rows.length} nhóm lớp cho học phần ${escapeHtml(tenMon)}</span>
+              <button type="button" class="btn" onclick="event.stopPropagation(); inspectSubjectClasses('${escapeAttr(maMon)}', '${escapeAttr(maHp)}', '${escapeAttr(tenMon)}', '${escapeAttr(maMonCha || "")}', true)">Làm mới sĩ số</button>
+            </div>
+            <table class="ledger-table drawer-subtable" aria-label="Danh sách lớp học phần ${escapeAttr(tenMon)}">
+              <thead>
+                <tr>
+                  <th scope="col">Lớp &amp; Mã LHP</th>
+                  <th scope="col">Nhóm TH</th>
+                  <th scope="col">Lịch học &amp; Phòng (LT + TH)</th>
+                  <th scope="col">Giảng viên</th>
+                  <th scope="col">Sĩ số</th>
+                  <th scope="col">Thao tác</th>
+                </tr>
+              </thead>
+              <tbody>${rowsHtml || '<tr><td colspan="6">Chưa có lớp mở phù hợp bộ lọc hiện tại.</td></tr>'}</tbody>
+            </table>
           </div>
-          <table class="ledger-table" aria-label="Danh sách lớp học phần ${escapeAttr(tenMon)}">
-            <thead>
-              <tr>
-                <th scope="col">Lớp &amp; Mã LHP</th>
-                <th scope="col">Nhóm TH</th>
-                <th scope="col">Lịch học &amp; Phòng (LT + TH)</th>
-                <th scope="col">Giảng viên</th>
-                <th scope="col">Sĩ số</th>
-                <th scope="col">Thao tác</th>
-              </tr>
-            </thead>
-            <tbody>${rowsHtml || '<tr><td colspan="6">Chưa có lớp mở phù hợp bộ lọc hiện tại.</td></tr>'}</tbody>
-          </table>
         </td>
       `;
     }
@@ -387,7 +391,7 @@ function renderEnrichedDrawerRows(rows, maMon, maHp, tenMon, maMonCha) {
     const canDirectReg = avail > 0 && !r.da_khoa;
     const badgeClass = canDirectReg ? "stamp-badge" : "stamp-badge stamp-badge--neutral";
     const badgeText = r.da_khoa ? "Đã khóa" : (avail > 0 ? `Còn ${avail} chỗ` : "Đã đủ sĩ số");
-    const sniperLabel = avail > 0 ? "Đưa vào khay săn" : "Canh người nhả";
+    const sniperLabel = avail > 0 ? "Thêm giám sát" : "Tự động chờ lớp";
     const nhomArg = (r.nhom_th !== null && r.nhom_th !== undefined) ? Number(r.nhom_th) : "null";
 
     const thLineHtml = r.lich_th
@@ -510,7 +514,7 @@ async function addTargetToQueue(idDot, maMon, maHp, tenMon, guidLhp, tenLop, nho
   }
 
   renderSniperStationTargets();
-  showInlineBanner(`Đã thêm ${tenMon} (${tenLop}, ${groupText}) vào Trạm canh lớp.`);
+  showInlineBanner(`Đã thêm ${tenMon} (${tenLop}, ${groupText}) vào Trạm giám sát đăng ký.`);
   appendTelemetryLog(`Đã thêm mục tiêu: ${tenMon} (${tenLop}, ${groupText}, ${loaiText})`);
 }
 
@@ -709,12 +713,12 @@ async function toggleSniperLoop() {
 
   sniperActive = !sniperActive;
   if (sniperActive) {
-    if (btn) btn.textContent = "Dừng canh lớp";
+    if (btn) btn.textContent = "Dừng tự động ghi danh";
     if (badge) {
-      badge.textContent = "Đang quét slot";
+      badge.textContent = "Đang giám sát";
       badge.className = "stamp-badge";
     }
-    appendTelemetryLog(`Đã kích hoạt vòng lặp canh lớp tự động (Chu kỳ ${intervalMs} ms)…`);
+    appendTelemetryLog(`Đã kích hoạt vòng lặp giám sát tự động (Chu kỳ ${intervalMs} ms)…`);
     updateSniperTabBadge();
 
     if (hasBridge()) {
@@ -730,12 +734,12 @@ async function toggleSniperLoop() {
       }, intervalMs);
     }
   } else {
-    if (btn) btn.textContent = "Kích hoạt canh lớp tự động";
+    if (btn) btn.textContent = "Kích hoạt tự động ghi danh";
     if (badge) {
       badge.textContent = "Tạm dừng";
       badge.className = "stamp-badge stamp-badge--neutral";
     }
-    appendTelemetryLog("Đã tạm dừng vòng lặp canh lớp tự động.");
+    appendTelemetryLog("Đã tạm dừng vòng lặp giám sát tự động.");
     clearInterval(sniperTimer);
     sniperTimer = null;
     updateSniperTabBadge();
@@ -767,8 +771,7 @@ async function pingRadarNow() {
 async function toggleRadar() {
   const label = document.getElementById("radar-label");
   radarActive = !radarActive;
-  label.textContent = radarActive ? "Đang nuôi phiên" : "Nuôi phiên 24/7";
-
+  label.textContent = radarActive ? "Đang duy trì phiên" : "Duy trì phiên nền";
   if (hasBridge()) {
     const status = await window.pywebview.api.ping_radar(currentSemesterId);
     const pingEl = document.getElementById("last-ping-time");
@@ -1146,7 +1149,7 @@ async function loadWeeklySchedule() {
 
   const statMeta = document.getElementById("schedule-stat-meta");
   if (statMeta) {
-    statMeta.textContent = `${totalSlots} buổi học · Đợt ${currentSemesterId}`;
+    statMeta.textContent = `${totalSlots} buổi học, Đợt ${currentSemesterId}`;
   }
 }
 
@@ -1180,7 +1183,7 @@ async function loadSettings() {
 
     const sessionSummary = document.getElementById("settings-session-summary");
     if (sessionSummary) {
-      sessionSummary.textContent = `Tài khoản ${s.username || 'Chưa đăng nhập'} · Chu kỳ Heartbeat: ${s.heartbeat_interval_seconds || 62}s`;
+      sessionSummary.textContent = `Tài khoản ${s.username || 'Chưa đăng nhập'}, Chu kỳ Heartbeat: ${s.heartbeat_interval_seconds || 62}s`;
     }
   } catch (e) {
     console.error("Lỗi khi tải cấu hình:", e);
