@@ -21,11 +21,10 @@
    - Thống kê chi tiết số lượng tín chỉ tích lũy, tổng học phí phát sinh, trạng thái khóa môn.
    - Hỗ trợ thao tác hủy lớp học phần trực tiếp với xác nhận an toàn.
 
-3. **Thời khóa biểu tuần & Lịch dự kiến ghép lớp (Weekly Timetable Matrix)**:
-   - Lưới thời khóa biểu 7 ngày (Thứ 2 đến Chủ nhật) $\times$ 3 ca học (Sáng, Chiều, Tối).
-   - Chuẩn hóa 5 nhóm màu phân loại đồng bộ với cổng nhà trường: Lý thuyết, Thực hành, Trực tuyến (MS Teams), Lịch thi, Lịch tạm ngưng.
-   - **Chế độ Lịch dự kiến ghép lớp (Interactive Preview)**: Tự động chiếu các lớp đang theo dõi trong hàng đợi giám sát lên lưới tuần dạng thẻ viền nét đứt, giúp sinh viên phát hiện xung đột lịch học trước khi đăng ký.
-
+3. **Thời khóa biểu tổng quan học kỳ & Phát hiện Trùng lịch (Weekly Timetable Matrix & Live Conflict Detection)**:
+   - Lưới thời khóa biểu 7 ngày (Thứ 2 đến Chủ nhật) $\times$ 3 ca học (Sáng, Chiều, Tối), đồng bộ trực tiếp lịch học thực tế từ các học phần đã đăng ký của từng học kỳ (tự động lọc đúng Nhóm Thực hành của sinh viên).
+   - Chuẩn hóa 6 nhóm màu phân loại: Lý thuyết, Thực hành, Trực tuyến (MS Teams), Lịch thi, Lớp dự kiến (viền nét đứt), và Cảnh báo trùng tiết (viền & nhãn đỏ).
+   - **Ướm thử lịch tức thì (`Xem thử TKB`) & Tự động ghép lớp giám sát**: Hỗ trợ bấm nút *Xem thử TKB* ngay từ danh sách lớp mở hoặc tự động chiếu các lớp trong *Trạm giám sát* lên lưới lịch; tự động kiểm tra giao thoa tiết học + khoảng thời gian ngày học (`dd/mm/yyyy`) để cảnh báo ngay nếu có xung đột lịch.
 4. **Trạm giám sát đăng ký (Registration Watchdog / Slot Sniper)**:
    - Cơ chế hàng đợi mục tiêu đa lớp với khóa định danh kết hợp `(guid_lhp, nhom_th)`.
    - Vòng lặp thăm dò tự động (chu kỳ cấu hình từ 500ms đến 3000ms) bắt ngay thời điểm có sinh viên khác hủy lớp hoặc trường mở thêm chỉ tiêu.
