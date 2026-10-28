@@ -6,7 +6,7 @@ let currentNoConflict = false;
 let radarActive = false;
 let sniperActive = false;
 let sniperTimer = null;
-
+let sniperPollInFlight = false;
 const subjectClassesCache = new Map();
 const subjectInflightMap = new Map();
 let hoverPrefetchTimer = null;
@@ -99,10 +99,13 @@ function setLedgerState(stateName, errorMsg) {
 async function onSemesterChange(idDot) {
   currentSemesterId = String(idDot);
   currentScheduleWeekDate = "";
+  const semSel = document.getElementById("semester-select");
+  if (semSel && semSel.value !== String(idDot)) {
+    semSel.value = String(idDot);
+  }
   clearSubjectCache();
   updateHeaderMeta();
   showInlineBanner("");
-
   const schedSec = document.getElementById("view-schedule");
   if (schedSec && !schedSec.hidden) {
     loadWeeklySchedule();
@@ -443,6 +446,7 @@ function renderEnrichedDrawerRows(rows, maMon, maHp, tenMon, maMonCha) {
             <button type="button" class="btn" onclick="addTargetToQueue('${escapeAttr(currentSemesterId)}', '${escapeAttr(maMon)}', '${escapeAttr(maHp)}', '${escapeAttr(tenMon)}', '${escapeAttr(r.guid_lhp)}', '${escapeAttr(r.ten_lop)}', ${nhomArg}, ${currentLoaiDk}, '${escapeAttr(maMonCha || r.ma_mon_cha || "")}')">${sniperLabel}</button>
             <button type="button" class="btn" onclick="previewClassOnSchedule('${escapeAttr(currentSemesterId)}', '${escapeAttr(maMon)}', '${escapeAttr(r.ma_lhp || maHp)}', '${escapeAttr(tenMon)}', '${escapeAttr(r.guid_lhp)}', '${escapeAttr(r.ten_lop)}', ${nhomArg})">Xem thử TKB</button>
           </div>
+        </td>
       </tr>
     `;
   }).join("");
@@ -801,6 +805,8 @@ async function toggleSniperLoop() {
 
     if (hasBridge()) {
       sniperTimer = setInterval(async () => {
+        if (sniperPollInFlight || !sniperActive) return;
+        sniperPollInFlight = true;
         try {
           const res = await window.pywebview.api.poll_sniper_once();
           if (res && res.events) {
@@ -808,6 +814,8 @@ async function toggleSniperLoop() {
           }
         } catch (e) {
           appendTelemetryLog("Lỗi vòng lặp quét: " + String(e), false, true);
+        } finally {
+          sniperPollInFlight = false;
         }
       }, intervalMs);
     }
@@ -864,7 +872,15 @@ function filterSubjects(query) {
   const rows = document.querySelectorAll("#subjects-tbody tr.ledger-row");
   rows.forEach(r => {
     const text = r.textContent.toLowerCase();
-    r.hidden = q.length > 0 && !text.includes(q);
+    const shouldHide = q.length > 0 && !text.includes(q);
+    r.hidden = shouldHide;
+    const maMon = r.dataset.mamh;
+    if (maMon) {
+      const drawer = document.getElementById("drawer-" + maMon);
+      if (drawer) {
+        drawer.hidden = shouldHide ? true : (r.getAttribute("aria-expanded") !== "true");
+      }
+    }
   });
 }
 
@@ -1130,7 +1146,12 @@ function escapeHtml(str) {
 }
 
 function escapeAttr(str) {
-  return String(str || "").replace(/'/g, "\\'").replace(/"/g, "&quot;");
+  return String(str || "")
+    .replace(/\\/g, "\\\\")
+    .replace(/'/g, "\\'")
+    .replace(/"/g, "&quot;")
+    .replace(/\r/g, "")
+    .replace(/\n/g, " ");
 }
 
 
@@ -1231,8 +1252,14 @@ function previewClassOnSchedule(idDot, maMon, maHp, tenMon, guidLhp, tenLop, nho
   switchView("schedule");
 }
 
-function removePreviewFromSandbox(targetKey) {
+async function removePreviewFromSandbox(targetKey) {
   previewSandboxTargets = previewSandboxTargets.filter(item => item.target_key !== targetKey);
+  const inWatchdog = sniperTargets.some(
+    t => (t.target_key || `${t.guid_lhp}_${t.nhom_th !== null && t.nhom_th !== undefined ? t.nhom_th : 0}`) === targetKey
+  );
+  if (inWatchdog) {
+    await removeTargetFromQueue(targetKey);
+  }
   loadWeeklySchedule();
 }
 
@@ -1361,14 +1388,16 @@ async function loadWeeklySchedule() {
       previewClasses = sniperTargets.filter(t => String(t.id_dot || currentSemesterId) === String(currentSemesterId));
     }
     if (previewSandboxTargets && previewSandboxTargets.length > 0) {
-      previewSandboxTargets.forEach(tempItem => {
-        const exists = previewClasses.some(
-          p => p.guid_lhp === tempItem.guid_lhp && (p.nhom_th ?? null) === (tempItem.nhom_th ?? null)
-        );
-        if (!exists) {
-          previewClasses.push(tempItem);
-        }
-      });
+      previewSandboxTargets
+        .filter(t => String(t.id_dot || currentSemesterId) === String(currentSemesterId))
+        .forEach(tempItem => {
+          const exists = previewClasses.some(
+            p => p.guid_lhp === tempItem.guid_lhp && (p.nhom_th ?? null) === (tempItem.nhom_th ?? null)
+          );
+          if (!exists) {
+            previewClasses.push(tempItem);
+          }
+        });
     }
   }
 
@@ -1646,8 +1675,20 @@ function testNotificationChime() {
 /* ========================================================================= */
 /* SESSION DIAGNOSTICS & LOGOUT                                              */
 /* ========================================================================= */
-function logoutSession() {
+async function logoutSession() {
   if (confirm("Bạn có chắc chắn muốn đăng xuất tài khoản hiện tại và xóa phiên?")) {
+    if (sniperActive) {
+      await toggleSniperLoop();
+    }
+    if (hasBridge() && typeof window.pywebview.api.logout === "function") {
+      try {
+        await window.pywebview.api.logout();
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    clearSubjectCache();
+    previewSandboxTargets = [];
     document.getElementById("profile-name").textContent = "Chưa đăng nhập";
     document.getElementById("profile-mssv").textContent = "";
     document.getElementById("profile-class").textContent = "";

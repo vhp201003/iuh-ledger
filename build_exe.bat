@@ -14,18 +14,21 @@ if %ERRORLEVEL% NEQ 0 (
     exit /b %ERRORLEVEL%
 )
 
-if exist "config.json" (
-    copy /Y "config.json" "dist\IUH_Ledger\config.json" >nul
-) else if exist "config.example.json" (
+echo [3/3] Nen thu muc thanh dist\IUH_Ledger_Portable.zip (SACH, KHONG CHUA PASSWORD/COOKIE)...
+if exist "config.example.json" (
     copy /Y "config.example.json" "dist\IUH_Ledger\config.json" >nul
 )
+if exist "dist\IUH_Ledger\session.json" (
+    del /F /Q "dist\IUH_Ledger\session.json" >nul 2>&1
+)
+python -c "import shutil, os; zp='dist/IUH_Ledger_Portable'; os.remove(zp+'.zip') if os.path.exists(zp+'.zip') else None; shutil.make_archive(zp, 'zip', 'dist', 'IUH_Ledger')"
 
+if exist "config.json" (
+    copy /Y "config.json" "dist\IUH_Ledger\config.json" >nul
+)
 if exist "session.json" (
     copy /Y "session.json" "dist\IUH_Ledger\session.json" >nul
 )
-
-echo [3/3] Nen thu muc thanh dist\IUH_Ledger_Portable.zip...
-python -c "import shutil, os; zp='dist/IUH_Ledger_Portable'; os.remove(zp+'.zip') if os.path.exists(zp+'.zip') else None; shutil.make_archive(zp, 'zip', 'dist', 'IUH_Ledger')"
 
 echo.
 echo ========================================================

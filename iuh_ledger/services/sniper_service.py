@@ -40,7 +40,7 @@ class SniperService:
         """
         results = []
 
-        for target in self.targets:
+        for target in list(self.targets):
             if target.get("registered"):
                 continue
 
@@ -63,7 +63,11 @@ class SniperService:
                 # Match class
                 matched_class = None
                 for c in classes:
-                    if c.guid_lhp == target["guid_lhp"] or (target.get("ten_lop") and c.ten_lop == target["ten_lop"]):
+                    if target.get("guid_lhp"):
+                        matched = (c.guid_lhp == target["guid_lhp"])
+                    else:
+                        matched = bool(target.get("ten_lop") and c.ten_lop == target["ten_lop"])
+                    if matched:
                         matched_class = c
                         break
 

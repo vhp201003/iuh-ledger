@@ -12,6 +12,8 @@ build/
 session.json
 config.json
 *.log
+capture/*
+!capture/004_GetDanhSachLichTheoTuan_POST.txt
 
 # Environments
 .venv/

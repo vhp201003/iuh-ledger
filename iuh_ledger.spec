@@ -17,10 +17,8 @@ datas = [
 ]
 if os.path.exists(os.path.join(here, 'capture', '004_GetDanhSachLichTheoTuan_POST.txt')):
     datas.append((os.path.join(here, 'capture', '004_GetDanhSachLichTheoTuan_POST.txt'), 'capture'))
-if os.path.exists(os.path.join(here, 'config.json')):
-    datas.append((os.path.join(here, 'config.json'), '.'))
-elif os.path.exists(os.path.join(here, 'iuh_ledger', 'config.json')):
-    datas.append((os.path.join(here, 'iuh_ledger', 'config.json'), '.'))
+if os.path.exists(os.path.join(here, 'config.example.json')):
+    datas.append((os.path.join(here, 'config.example.json'), '.'))
 binaries = []
 hiddenimports = [
     'webview',

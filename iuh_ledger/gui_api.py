@@ -9,6 +9,8 @@ import sys
 import json
 import time
 import base64
+import tempfile
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict
 from types import SimpleNamespace
@@ -171,6 +173,7 @@ class BridgeAPI:
         self.sniper = SniperService(self.catalog, self.registration, self.config.get("target_classes", []))
         self._login_token: Optional[str] = None
         self._reg_sched_cache: Dict[str, tuple] = {}
+        self._config_lock = threading.RLock()
     def _load_config(self) -> Dict[str, Any]:
         candidates = [
             os.path.join(os.path.dirname(sys.executable), self.config_path) if getattr(sys, 'frozen', False) else None,
@@ -193,17 +196,29 @@ class BridgeAPI:
         }
 
     def _save_config(self):
-        if getattr(sys, 'frozen', False):
-            target = os.path.join(os.path.dirname(sys.executable), self.config_path)
-        else:
-            candidates = [self.config_path, os.path.join("iuh_ledger", self.config_path)]
-            target = candidates[0]
-            for c in candidates:
-                if os.path.exists(c):
-                    target = c
-                    break
-        with open(target, "w", encoding="utf-8") as f:
-            json.dump(self.config, f, indent=2, ensure_ascii=False)
+        with self._config_lock:
+            if getattr(sys, 'frozen', False):
+                target = os.path.join(os.path.dirname(sys.executable), self.config_path)
+            else:
+                candidates = [self.config_path, os.path.join("iuh_ledger", self.config_path)]
+                target = candidates[0]
+                for c in candidates:
+                    if os.path.exists(c):
+                        target = c
+                        break
+            target_dir = os.path.dirname(os.path.abspath(target)) or "."
+            os.makedirs(target_dir, exist_ok=True)
+            fd, tmp_path = tempfile.mkstemp(dir=target_dir, prefix="cfg_", suffix=".tmp")
+            try:
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
+                    json.dump(self.config, f, indent=2, ensure_ascii=False)
+                os.replace(tmp_path, target)
+            except Exception:
+                if os.path.exists(tmp_path):
+                    try:
+                        os.remove(tmp_path)
+                    except Exception:
+                        pass
 
     def get_initial_state(self) -> Dict[str, Any]:
         """
@@ -343,14 +358,16 @@ class BridgeAPI:
         Executes immediate course registration when a class has available slots.
         """
         norm_nhom = extract_nhom_th_int(nhom_th)
-        return self.registration.register_class(
+        res = self.registration.register_class(
             id_dot=str(id_dot),
             guid_lhp=str(guid_lhp),
             loai_dk=int(loai_dk),
             nhom_th=norm_nhom,
             ma_mon_cha=str(ma_mon_cha or "")
         )
-
+        if res.get("success"):
+            self._reg_sched_cache.pop(str(id_dot), None)
+        return res
     def get_registered_courses(self, id_dot: str = "62", loai_dk: int = 1) -> Dict[str, Any]:
         try:
             courses = self.catalog.get_registered_courses(id_dot=str(id_dot), loai_dk=int(loai_dk))
@@ -366,8 +383,10 @@ class BridgeAPI:
             }
 
     def cancel_course(self, id_dk: str, guid_dk: str) -> Dict[str, Any]:
-        return self.registration.cancel_registered_class(id_dk=str(id_dk), guid_dk=str(guid_dk))
-
+        res = self.registration.cancel_registered_class(id_dk=str(id_dk), guid_dk=str(guid_dk))
+        if res.get("success"):
+            self._reg_sched_cache.clear()
+        return res
     def get_schedule_for_class(self, guid_lhp: str) -> Dict[str, Any]:
         """
         Retrieves detailed schedule rows for any given class GUID.
@@ -510,6 +529,7 @@ class BridgeAPI:
 
         self.sniper.poll_once(on_event=on_ev)
         if any_registered:
+            self._reg_sched_cache.clear()
             self._save_config()
         return {"success": True, "events": events}
 
@@ -531,12 +551,12 @@ class BridgeAPI:
             cap_res = self.client.get(IUHEndpoints.GET_CAPTCHA)
             cap_bytes = cap_res.read()
 
-            gui_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "gui")
-            os.makedirs(gui_dir, exist_ok=True)
-            img_path = os.path.join(gui_dir, "captcha.jpg")
-            with open(img_path, "wb") as f:
-                f.write(cap_bytes)
-
+            img_path = os.path.join(tempfile.gettempdir(), "iuh_ledger_captcha.jpg")
+            try:
+                with open(img_path, "wb") as f:
+                    f.write(cap_bytes)
+            except Exception:
+                pass
             b64_str = base64.b64encode(cap_bytes).decode("ascii")
             data_uri = f"data:image/jpeg;base64,{b64_str}"
 
@@ -571,6 +591,7 @@ class BridgeAPI:
 
             if "ASC.AUTH" in cookies or self.client.is_session_valid():
                 self.client.save_cookies()
+                self._reg_sched_cache.clear()
                 self.config["username"] = username
                 self.config["password"] = password
                 self._save_config()
@@ -580,6 +601,23 @@ class BridgeAPI:
         except Exception as e:
             return {"success": False, "message": str(e)}
 
+    def logout(self) -> Dict[str, Any]:
+        """
+        Clears in-memory cookies, deletes session.json, and invalidates schedule caches.
+        """
+        try:
+            self.radar.stop_heartbeat()
+            self.sniper.stop()
+            self.client.clear_cookies()
+            self._reg_sched_cache.clear()
+            if self.client.session_path and os.path.exists(self.client.session_path):
+                try:
+                    os.remove(self.client.session_path)
+                except Exception:
+                    pass
+            return {"success": True, "message": "Đã đăng xuất và xóa phiên làm việc."}
+        except Exception as e:
+            return {"success": False, "message": str(e)}
     def get_settings(self) -> Dict[str, Any]:
         """
         Retrieves current system settings and background job configuration.
@@ -606,7 +644,8 @@ class BridgeAPI:
         if not isinstance(settings, dict):
             return {"success": False, "message": "Cấu hình không hợp lệ."}
         for k in ["heartbeat_interval_seconds", "sniper_poll_interval_ms", "telegram_bot_token",
-                  "telegram_chat_id", "audio_chime_enabled", "auto_swap_same_course"]:
+                  "telegram_chat_id", "audio_chime_enabled", "auto_swap_same_course",
+                  "id_dot_dang_ky", "loai_dk"]:
             if k in settings:
                 self.config[k] = settings[k]
         if "heartbeat_interval_seconds" in settings:
@@ -757,6 +796,13 @@ class BridgeAPI:
                     for k in ("prev_week", "current_week", "next_week", "day_dates"):
                         if tt_res.get(k):
                             week_info[k] = tt_res[k]
+                    if tt_res.get("day_dates"):
+                        from datetime import datetime
+                        week_info["day_dt_map"] = {
+                            code: datetime.strptime(d_str, "%d/%m/%Y")
+                            for code, d_str in tt_res["day_dates"].items()
+                            if re.match(r'^\d{2}/\d{2}/\d{4}$', str(d_str))
+                        }
                     if tt_res.get("slots"):
                         has_live_session = True
                         if not raw_slots:
@@ -779,6 +825,13 @@ class BridgeAPI:
                 for k in ("prev_week", "current_week", "next_week", "day_dates"):
                     if cap_tt.get(k):
                         week_info[k] = cap_tt[k]
+                if cap_tt.get("day_dates"):
+                    from datetime import datetime
+                    week_info["day_dt_map"] = {
+                        code: datetime.strptime(d_str, "%d/%m/%Y")
+                        for code, d_str in cap_tt["day_dates"].items()
+                        if re.match(r'^\d{2}/\d{2}/\d{4}$', str(d_str))
+                    }
                 if not registered_count:
                     registered_count = len({s.get("ma_lhp") or s.get("ten_mon") for s in raw_slots})
 
@@ -790,7 +843,7 @@ class BridgeAPI:
                     continue
                 guid = p.get("guid_lhp", "")
                 ten_mon = p.get("ten_mon", "")
-                ma_lhp = p.get("ma_hp", "") or p.get("ma_lhp", "")
+                ma_lhp = p.get("ma_lhp", "") or p.get("ma_hp", "")
                 ten_lop = p.get("ten_lop", "")
                 p_nhom = extract_nhom_th_int(p.get("nhom_th"))
                 p_scheds: List[Any] = []
@@ -924,16 +977,19 @@ class BridgeAPI:
                 merged_map[key] = dict(sl)
             else:
                 existing = merged_map[key]
-                # Expand period range if a makeup/sub-range exists in the same shift
                 st_old, en_old = existing.get("tiet_start", 0), existing.get("tiet_end", 0)
                 st_new, en_new = sl.get("tiet_start", 0), sl.get("tiet_end", 0)
+                # If two sessions of the same course in the same shift have disjoint periods (e.g. LT tiết 1-2 and TH tiết 4-6), keep both slots separate
+                if st_new and en_new and st_old and en_old and max(st_old, st_new) > min(en_old, en_new) + 1:
+                    disjoint_key = (*key, st_new, sl.get("loai", ""))
+                    merged_map[disjoint_key] = dict(sl)
+                    continue
                 if st_new and en_new:
                     st_min = min(st_old, st_new) if st_old else st_new
                     en_max = max(en_old, en_new) if en_old else en_new
                     existing["tiet_start"] = st_min
                     existing["tiet_end"] = en_max
                     existing["tiet"] = f"{st_min} - {en_max}"
-
                 # Prefer physical room over "Trực tuyến" when a course has both phases, or combine rooms
                 p_new = sl.get("phong", "")
                 p_old = existing.get("phong", "")

@@ -16,8 +16,8 @@ class RadarService:
         self.id_dot = str(id_dot)
         self.interval_seconds = interval_seconds
         self.is_running = False
+        self.open_event = threading.Event()
         self._thread: Optional[threading.Thread] = None
-
     def check_status(self) -> Dict[str, Any]:
         """
         Sends CheckDotChoPhepDangKy request to inspect registration period status.
@@ -71,11 +71,12 @@ class RadarService:
                     pass
 
             if status.get("open"):
-                self.is_running = False
+                self.open_event.set()
                 try:
                     on_open(status)
                 except Exception:
                     pass
+                self.is_running = False
                 break
 
             # Sleep in small increments for clean shutdown
@@ -91,6 +92,7 @@ class RadarService:
         if self.is_running:
             return
 
+        self.open_event.clear()
         self.is_running = True
         self._thread = threading.Thread(
             target=self._loop,

@@ -194,22 +194,35 @@ def handle_view_open_subjects(catalog: CatalogService, id_dot: str, config: Dict
 
     if Confirm.ask(f"[bold green]🎯 Bạn có muốn thêm lớp '{chosen_class.ten_lop}' vào danh sách mục tiêu SĂN SLOT không?[/]", default=True):
         config.setdefault("target_classes", [])
-        # Check if already added
-        if not any(t.get("guid_lhp") == chosen_class.guid_lhp for t in config["target_classes"]):
+        th_groups = sorted({int(s.nhom_th) for s in schedules if s.nhom_th and str(s.nhom_th).strip().isdigit()})
+        chosen_nhom = chosen_class.nhom_th
+        if th_groups:
+            nhom_str = Prompt.ask(
+                f"[bold cyan]👉 Chọn Nhóm Thực Hành ({'/'.join(map(str, th_groups))})[/]",
+                choices=[str(g) for g in th_groups],
+                default=str(th_groups[0])
+            )
+            chosen_nhom = int(nhom_str)
+        t_key = f"{chosen_class.guid_lhp}_{chosen_nhom if chosen_nhom is not None else 0}"
+        if not any(
+            f"{t.get('guid_lhp')}_{t.get('nhom_th') if t.get('nhom_th') is not None else 0}" == t_key
+            for t in config["target_classes"]
+        ):
             config["target_classes"].append({
+                "target_key": t_key,
                 "id_dot": id_dot,
                 "ma_mon": selected_subj.ma_mon,
                 "ma_hp": selected_subj.ma_hp,
                 "ten_mon": selected_subj.ten_mon,
                 "guid_lhp": chosen_class.guid_lhp,
                 "ten_lop": chosen_class.ten_lop,
-                "nhom_th": chosen_class.nhom_th,
+                "nhom_th": chosen_nhom,
                 "ma_mon_cha": selected_subj.ma_mon_cha
             })
             save_config(config)
-            console.print(f"[bold green]✅ Đã thêm lớp '{chosen_class.ten_lop}' vào targets thành công![/]")
+            console.print(f"[bold green]✅ Đã thêm lớp '{chosen_class.ten_lop}' (Nhóm TH: {chosen_nhom or 'LT'}) vào targets thành công![/]")
         else:
-            console.print("[yellow]Lớp này đã có sẵn trong danh sách mục tiêu.[/]")
+            console.print("[yellow]Lớp và nhóm thực hành này đã có sẵn trong danh sách mục tiêu.[/]")
 
 def handle_view_registered(catalog: CatalogService, reg_service: RegistrationService, id_dot: str):
     with console.status("[cyan]Đang tải danh sách học phần đã đăng ký...[/]"):
@@ -268,6 +281,7 @@ def handle_sniper_mode(catalog: CatalogService, reg_service: RegistrationService
             status_text = "[bold green]CÓ SLOT TRỐNG![/]" if data["slot_available"] else "[dim]Đầy (0 slot)[/]"
             console.print(f"[{t}] [cyan]{c.ten_lop}[/] | Sĩ số: {c.si_so_dk}/{c.si_so_max} | {status_text} [dim]({lat}ms)[/]")
         elif ev_type == "success":
+            save_config(config)
             console.print(f"\n[bold green]🎉 [{t}] ĐĂNG KÝ THÀNH CÔNG LỚP: {data['target'].get('ten_lop')}! ({data['result'].get('message')})[/]\a")
         elif ev_type == "failed":
             console.print(f"[bold red]❌ [{t}] Bắn slot thất bại: {data['result'].get('message')}[/]")
@@ -294,16 +308,16 @@ def handle_radar_mode(client: IUHClient, catalog: CatalogService, reg_service: R
 
     def on_open(status: Dict[str, Any]):
         console.print(f"\n[bold red]🚨 [{time.strftime('%H:%M:%S')}] PHÁT HIỆN TRƯỜNG ĐÃ MỞ ĐỢT ĐĂNG KÝ HỌC PHẦN![/]\a\a\a")
-        if config.get("target_classes"):
-            console.print("[bold yellow]🚀 Tự động kích hoạt Sniper Mode ngay lập tức...[/]")
-            handle_sniper_mode(catalog, reg_service, config)
 
     console.print("[dim]Bấm Ctrl + C để dừng Radar.[/]\n")
     radar.start_heartbeat(on_open_callback=on_open, on_ping_callback=on_ping)
 
     try:
-        while radar.is_running:
-            time.sleep(1)
+        while radar.is_running and not radar.open_event.is_set():
+            time.sleep(0.5)
+        if radar.open_event.is_set() and config.get("target_classes"):
+            console.print("[bold yellow]🚀 Tự động kích hoạt Sniper Mode ngay lập tức...[/]")
+            handle_sniper_mode(catalog, reg_service, config)
     except KeyboardInterrupt:
         radar.stop_heartbeat()
         console.print("\n[yellow]Đã dừng Radar Mode.[/]")

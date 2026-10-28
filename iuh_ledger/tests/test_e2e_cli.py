@@ -390,5 +390,60 @@ class TestIUHSniperE2E(unittest.TestCase):
             if os.path.exists(tmp_cfg):
                 os.remove(tmp_cfg)
 
+    def test_11_code_review_regressions(self):
+        """Verifies fixes for hyphenated course title parsing, disjoint period merging, fallback sniper dedup, and logout."""
+        from iuh_ledger.core.parser import IUHHTMLParser
+        from iuh_ledger.gui_api import BridgeAPI
+
+        # 1. Hyphen in course title ("Kinh tế chính trị Mác - Lênin") must not corrupt lop_du_kien
+        html_classes = """
+        <table>
+            <tr class="lop-hoc-phan-row" onclick="SelectLopHocPhanChoDangKy(this)" data-guidlhp="GUID_MAC_LENIN">
+                <td>1</td>
+                <td>
+                    <div class="name">Kinh tế chính trị Mác - Lênin</div>
+                    <div>Trạng thái: Đang lên kế hoạch</div>
+                    <div>Mã lớp học phần: 429701380205 - DHTMDT20B_TCTA</div>
+                </td>
+                <td>35 / 60</td>
+            </tr>
+        </table>
+        """
+        parsed_cls = IUHHTMLParser.parse_classes(html_classes)
+        self.assertEqual(len(parsed_cls), 1)
+        self.assertEqual(parsed_cls[0].ma_lhp, "429701380205")
+        self.assertEqual(parsed_cls[0].lop_du_kien, "DHTMDT20B_TCTA")
+        self.assertEqual(parsed_cls[0].ten_lop, "DHTMDT20B_TCTA")
+
+        # 2. Disjoint sessions in the same shift (e.g. Tiết 1-2 and Tiết 5-6) must NOT merge over Tiết 3-4
+        tmp_cfg = "test_review_reg_cfg.json"
+        tmp_sess = "test_review_reg_sess.json"
+        try:
+            with open(tmp_cfg, "w", encoding="utf-8") as f:
+                json.dump({"username": "24687201", "id_dot_dang_ky": "64", "target_classes": []}, f)
+            with open(tmp_sess, "w", encoding="utf-8") as f:
+                json.dump({"ASC.AUTH": "dummy"}, f)
+
+            bridge = BridgeAPI(config_path=tmp_cfg, session_path=tmp_sess)
+            disjoint_slots = [
+                {"day": "3", "ca": "sang", "ten_mon": "Cơ sở dữ liệu", "ma_lhp": "429701", "ten_lop": "L1", "tiet": "1 - 2", "tiet_start": 1, "tiet_end": 2, "phong": "A1", "giang_vien": "GV1", "thoi_gian": "01/08/2026 - 01/12/2026", "ghi_chu": "", "loai": "ly_thuyet", "is_preview": False},
+                {"day": "3", "ca": "sang", "ten_mon": "Cơ sở dữ liệu", "ma_lhp": "429701", "ten_lop": "L1", "tiet": "5 - 6", "tiet_start": 5, "tiet_end": 6, "phong": "H7", "giang_vien": "GV1", "thoi_gian": "01/08/2026 - 01/12/2026", "ghi_chu": "Nhóm TH 1", "loai": "thuc_hanh", "is_preview": False},
+                {"day": "3", "ca": "sang", "ten_mon": "Toán cao cấp", "ma_lhp": "429702", "ten_lop": "L2", "tiet": "3 - 4", "tiet_start": 3, "tiet_end": 4, "phong": "B2", "giang_vien": "GV2", "thoi_gian": "01/08/2026 - 01/12/2026", "ghi_chu": "", "loai": "ly_thuyet", "is_preview": True}
+            ]
+            deduped = bridge._dedupe_and_detect_conflicts(disjoint_slots)
+            self.assertEqual(len(deduped), 3)
+            for s in deduped:
+                self.assertFalse(s["has_conflict"])
+
+            # 3. Logout clears cookies and removes session file
+            out_res = bridge.logout()
+            self.assertTrue(out_res["success"])
+            self.assertFalse(os.path.exists(tmp_sess))
+            self.assertEqual(bridge.client.get_cookies_dict(), {})
+        finally:
+            for p in (tmp_cfg, tmp_sess):
+                if os.path.exists(p):
+                    os.remove(p)
+
 if __name__ == "__main__":
     unittest.main()

@@ -7,11 +7,11 @@ import os
 import sys
 import json
 import ssl
+import threading
 import urllib.request
 import urllib.parse
 from http.cookiejar import CookieJar, Cookie
 from typing import Optional, Dict, Any
-from iuh_ledger.core.endpoints import IUHEndpoints
 
 class IUHClient:
     DEFAULT_HEADERS = {
@@ -32,8 +32,8 @@ class IUHClient:
             self.session_path = os.path.join("iuh_ledger", "session.json")
         else:
             self.session_path = "session.json"
+        self._lock = threading.RLock()
         self.cookie_jar = CookieJar()
-        
         # SSL Context
         self.ssl_ctx = ssl.create_default_context()
         self.ssl_ctx.check_hostname = False
@@ -50,20 +50,23 @@ class IUHClient:
             path=path, path_specified=bool(path), secure=False, expires=None,
             discard=True, comment=None, comment_url=None, rest={'HttpOnly': None}, rfc2109=False
         )
-        self.cookie_jar.set_cookie(cookie)
+        with self._lock:
+            self.cookie_jar.set_cookie(cookie)
+
+    def clear_cookies(self):
+        with self._lock:
+            self.cookie_jar.clear()
 
     def get_cookies_dict(self) -> Dict[str, str]:
-        cookies = {}
-        for c in self.cookie_jar:
-            cookies[c.name] = c.value
-        return cookies
+        with self._lock:
+            return {c.name: c.value for c in self.cookie_jar}
 
     def save_cookies(self, filepath: Optional[str] = None):
         target = filepath or self.session_path
         data = self.get_cookies_dict()
-        with open(target, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2)
-
+        with self._lock:
+            with open(target, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2)
     def load_cookies(self, filepath: Optional[str] = None) -> bool:
         target = filepath or self.session_path
         if not os.path.exists(target):
@@ -105,7 +108,8 @@ class IUHClient:
         else:
             opener = self.opener
 
-        return opener.open(req, timeout=timeout)
+        with self._lock:
+            return opener.open(req, timeout=timeout)
 
     def get(self, url: str, headers: Optional[Dict[str, str]] = None, **kwargs):
         return self.request("GET", url, headers=headers, **kwargs)

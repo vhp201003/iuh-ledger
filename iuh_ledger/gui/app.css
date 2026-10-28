@@ -328,6 +328,7 @@ body {
   border: var(--rule-hair) solid var(--color-rule);
   border-radius: var(--radius-card);
   padding: var(--space-xs) var(--space-sm);
+  overflow-x: auto;
 }
 
 .class-drawer .ledger-table th,

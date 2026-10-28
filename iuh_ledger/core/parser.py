@@ -132,13 +132,13 @@ class IUHHTMLParser:
             col1_raw = cells[1] if len(cells) > 1 else ""
             siso_str = cells[2] if len(cells) > 2 else ""
 
-            # Extract Ma LHP (12 digits)
-            ma_lhp_m = re.search(r'Mã\s*lớp\s*học\s*phần:\s*([0-9]+)', col1_raw, re.I)
+            # Extract Ma LHP (12 digits) and Lop du kien anchored after Ma LHP
+            ma_lhp_m = re.search(r'Mã\s*lớp\s*học\s*phần:\s*([0-9]+)(?:\s*-\s*([A-Za-z0-9_]+))?', col1_raw, re.I)
             ma_lhp = ma_lhp_m.group(1) if ma_lhp_m else ""
-
-            # Extract Lop du kien after " - "
-            lop_dk_m = re.search(r'-\s*([A-Za-z0-9_]+)', col1_raw)
-            lop_du_kien = lop_dk_m.group(1) if lop_dk_m else ""
+            lop_du_kien = (ma_lhp_m.group(2) or "") if ma_lhp_m else ""
+            if not lop_du_kien:
+                lop_dk_m = re.search(r'-\s*([A-Za-z0-9_]{3,})', col1_raw)
+                lop_du_kien = lop_dk_m.group(1) if lop_dk_m else ""
 
             # Extract Trang thai
             tt_m = re.search(r'Trạng\s*thái:\s*([^<\n\r]+)', col1_raw, re.I)
