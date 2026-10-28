@@ -6,16 +6,16 @@ Verifies crypto, parser, client session, endpoints contract, and services.
 import os
 import json
 import unittest
-from iuh_sniper.core.endpoints import IUHEndpoints
-from iuh_sniper.core.crypto import encrypt_iuh_password
-from iuh_sniper.core.client import IUHClient
-from iuh_sniper.core.parser import IUHHTMLParser
-from iuh_sniper.core.models import Subject, CourseClass, ClassSchedule
-from iuh_sniper.services.catalog_service import CatalogService
-from iuh_sniper.services.registration_service import RegistrationService
-from iuh_sniper.services.radar_service import RadarService
-from iuh_sniper.services.sniper_service import SniperService
-from iuh_sniper.gui_api import BridgeAPI, flatten_class_with_schedules, extract_nhom_th_int
+from iuh_ledger.core.endpoints import IUHEndpoints
+from iuh_ledger.core.crypto import encrypt_iuh_password
+from iuh_ledger.core.client import IUHClient
+from iuh_ledger.core.parser import IUHHTMLParser
+from iuh_ledger.core.models import Subject, CourseClass, ClassSchedule
+from iuh_ledger.services.catalog_service import CatalogService
+from iuh_ledger.services.registration_service import RegistrationService
+from iuh_ledger.services.radar_service import RadarService
+from iuh_ledger.services.sniper_service import SniperService
+from iuh_ledger.gui_api import BridgeAPI, flatten_class_with_schedules, extract_nhom_th_int
 
 class TestIUHSniperE2E(unittest.TestCase):
 
@@ -312,7 +312,7 @@ class TestIUHSniperE2E(unittest.TestCase):
             self.assertFalse(first_slot["is_preview"])
 
             # 4. Registered + Preview schedule integration & Conflict Detection
-            from iuh_sniper.core.models import RegisteredCourse
+            from iuh_ledger.core.models import RegisteredCourse
             preview_class = {
                 "id_dot": "62",
                 "guid_lhp": "PREVIEW_GUID",

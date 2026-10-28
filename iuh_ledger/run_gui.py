@@ -23,7 +23,7 @@ else:
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import webview
-from iuh_sniper.gui_api import BridgeAPI
+from iuh_ledger.gui_api import BridgeAPI
 def get_base_dir():
     if getattr(sys, 'frozen', False):
         return getattr(sys, '_MEIPASS', os.path.dirname(sys.executable))
@@ -32,10 +32,10 @@ def get_base_dir():
 def main():
     base_dir = get_base_dir()
     candidates = [
-        os.path.join(base_dir, "iuh_sniper", "gui", "index.html"),
+        os.path.join(base_dir, "iuh_ledger", "gui", "index.html"),
         os.path.join(base_dir, "gui", "index.html"),
         os.path.join(os.path.dirname(os.path.abspath(__file__)), "gui", "index.html"),
-        os.path.join("iuh_sniper", "gui", "index.html")
+        os.path.join("iuh_ledger", "gui", "index.html")
     ]
     index_html = next((c for c in candidates if os.path.exists(c)), candidates[0])
 

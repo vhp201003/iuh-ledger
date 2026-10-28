@@ -20,19 +20,19 @@ from rich.table import Table
 from rich.panel import Panel
 from rich.prompt import Prompt, Confirm
 
-from iuh_sniper.core.endpoints import IUHEndpoints
-from iuh_sniper.core.client import IUHClient
-from iuh_sniper.core.auth import IUHAuthenticator
-from iuh_sniper.core.models import Subject, CourseClass, ClassSchedule
-from iuh_sniper.services.catalog_service import CatalogService
-from iuh_sniper.services.registration_service import RegistrationService
-from iuh_sniper.services.radar_service import RadarService
-from iuh_sniper.services.sniper_service import SniperService
+from iuh_ledger.core.endpoints import IUHEndpoints
+from iuh_ledger.core.client import IUHClient
+from iuh_ledger.core.auth import IUHAuthenticator
+from iuh_ledger.core.models import Subject, CourseClass, ClassSchedule
+from iuh_ledger.services.catalog_service import CatalogService
+from iuh_ledger.services.registration_service import RegistrationService
+from iuh_ledger.services.radar_service import RadarService
+from iuh_ledger.services.sniper_service import SniperService
 
 console = Console()
 
 def load_config(config_path: str = "config.json") -> Dict[str, Any]:
-    candidates = [config_path, os.path.join("iuh_sniper", config_path)]
+    candidates = [config_path, os.path.join("iuh_ledger", config_path)]
     for c in candidates:
         if os.path.exists(c):
             with open(c, "r", encoding="utf-8") as f:
@@ -45,7 +45,7 @@ def load_config(config_path: str = "config.json") -> Dict[str, Any]:
     }
 
 def save_config(config: Dict[str, Any], config_path: str = "config.json"):
-    candidates = [config_path, os.path.join("iuh_sniper", config_path)]
+    candidates = [config_path, os.path.join("iuh_ledger", config_path)]
     target = candidates[0]
     for c in candidates:
         if os.path.exists(c):

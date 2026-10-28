@@ -6,9 +6,9 @@ Polls target class enrollment statuses and fires instant registration when slots
 import time
 import threading
 from typing import List, Dict, Any, Optional, Callable
-from iuh_sniper.core.models import Subject
-from iuh_sniper.services.catalog_service import CatalogService
-from iuh_sniper.services.registration_service import RegistrationService
+from iuh_ledger.core.models import Subject
+from iuh_ledger.services.catalog_service import CatalogService
+from iuh_ledger.services.registration_service import RegistrationService
 
 class SniperService:
     def __init__(self, catalog_service: CatalogService, registration_service: RegistrationService, 

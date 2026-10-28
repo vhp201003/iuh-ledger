@@ -6,9 +6,9 @@ Coordinates existing session recovery and native AES+Captcha login.
 import re
 import os
 from typing import Callable, Optional
-from iuh_sniper.core.endpoints import IUHEndpoints
-from iuh_sniper.core.crypto import encrypt_iuh_password
-from iuh_sniper.core.client import IUHClient
+from iuh_ledger.core.endpoints import IUHEndpoints
+from iuh_ledger.core.crypto import encrypt_iuh_password
+from iuh_ledger.core.client import IUHClient
 
 class IUHAuthenticator:
     def __init__(self, client: IUHClient, username: str, password: str = ""):

@@ -66,7 +66,7 @@ pip install -r requirements.txt
 copy config.example.json config.json
 
 # 5. Khởi chạy ứng dụng
-python -m iuh_sniper.run_gui
+python -m iuh_ledger.run_gui
 ```
 
 ---
@@ -74,7 +74,7 @@ python -m iuh_sniper.run_gui
 ## 📦 Sử Dụng Bản Portable (.ZIP) & Đóng Gói Thực Thi Độc Lập (.exe)
 
 ### Cách 1: Dành cho Người dùng cuối (Không cần cài Python)
-1. Tải gói **`IUH_Ledger_Portable.zip`** (trong mục **Releases** trên GitHub hoặc tại `iuh_sniper/dist/IUH_Ledger_Portable.zip`).
+1. Tải gói **`IUH_Ledger_Portable.zip`** (trong mục **Releases** trên GitHub hoặc tại `dist/IUH_Ledger_Portable.zip`).
 2. Giải nén toàn bộ thư mục `IUH_Ledger` ra máy tính (lưu ý giữ nguyên thư mục `_internal` đi kèm bên cạnh `IUH_Ledger.exe`).
 3. Click đúp vào **`IUH_Ledger.exe`** để sử dụng ngay lập tức! Gói đã tích hợp sẵn `python314.dll`, `Python.Runtime.dll`, `ClrLoader.dll`, `WebView2Loader.dll` và bộ thư viện Visual C++ / UCRT Runtime.
 
@@ -86,8 +86,8 @@ build_exe.bat
 ```
 
 Sau khi chạy xong:
-- Thư mục chạy trực tiếp: `iuh_sniper\dist\IUH_Ledger\IUH_Ledger.exe`
-- Gói ZIP phân phối hoàn chỉnh (18.7 MB): `iuh_sniper\dist\IUH_Ledger_Portable.zip`
+- Thư mục chạy trực tiếp: `dist\IUH_Ledger\IUH_Ledger.exe`
+- Gói ZIP phân phối hoàn chỉnh (18.7 MB): `dist\IUH_Ledger_Portable.zip`
 ---
 
 ## 🧪 Kiểm Thử Tự Động (Test Suite)
@@ -95,12 +95,12 @@ Sau khi chạy xong:
 Dự án đi kèm bộ 10 bài kiểm thử đơn vị và hợp thành bao phủ toàn bộ luồng hoạt động:
 
 ```bash
-python -m unittest iuh_sniper.tests.test_e2e_cli -v
+python -m unittest iuh_ledger.tests.test_e2e_cli -v
 ```
 
 Kiểm tra tiêu chuẩn thiết kế giao diện bằng Hallmark Sloplint:
 ```bash
-node <path-to-sloplint>/sloplint.mjs iuh_sniper/gui --scope app
+node <path-to-sloplint>/sloplint.mjs iuh_ledger/gui --scope app
 ```
 
 ---

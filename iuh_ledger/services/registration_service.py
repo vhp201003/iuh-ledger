@@ -5,8 +5,8 @@ Dispatches direct enrollment and drop commands with ASP.NET model-binding.
 
 import json
 from typing import Optional, Dict, Any
-from iuh_sniper.core.endpoints import IUHEndpoints
-from iuh_sniper.core.client import IUHClient
+from iuh_ledger.core.endpoints import IUHEndpoints
+from iuh_ledger.core.client import IUHClient
 
 class RegistrationService:
     def __init__(self, client: IUHClient):

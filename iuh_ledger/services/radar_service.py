@@ -7,8 +7,8 @@ import time
 import json
 import threading
 from typing import Callable, Optional, Dict, Any
-from iuh_sniper.core.endpoints import IUHEndpoints
-from iuh_sniper.core.client import IUHClient
+from iuh_ledger.core.endpoints import IUHEndpoints
+from iuh_ledger.core.client import IUHClient
 
 class RadarService:
     def __init__(self, client: IUHClient, id_dot: str = "62", interval_seconds: int = 180):

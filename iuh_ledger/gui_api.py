@@ -13,14 +13,14 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict
 from typing import Dict, Any, List, Optional
 
-from iuh_sniper.core.endpoints import IUHEndpoints
-from iuh_sniper.core.client import IUHClient
-from iuh_sniper.core.auth import IUHAuthenticator
-from iuh_sniper.core.models import Subject, CourseClass, ClassSchedule
-from iuh_sniper.services.catalog_service import CatalogService
-from iuh_sniper.services.registration_service import RegistrationService
-from iuh_sniper.services.radar_service import RadarService
-from iuh_sniper.services.sniper_service import SniperService
+from iuh_ledger.core.endpoints import IUHEndpoints
+from iuh_ledger.core.client import IUHClient
+from iuh_ledger.core.auth import IUHAuthenticator
+from iuh_ledger.core.models import Subject, CourseClass, ClassSchedule
+from iuh_ledger.services.catalog_service import CatalogService
+from iuh_ledger.services.registration_service import RegistrationService
+from iuh_ledger.services.radar_service import RadarService
+from iuh_ledger.services.sniper_service import SniperService
 
 
 def extract_nhom_th_int(raw_val: Any) -> Optional[int]:
@@ -175,7 +175,7 @@ class BridgeAPI:
         candidates = [
             os.path.join(os.path.dirname(sys.executable), self.config_path) if getattr(sys, 'frozen', False) else None,
             self.config_path,
-            os.path.join("iuh_sniper", self.config_path)
+            os.path.join("iuh_ledger", self.config_path)
         ]
         for c in candidates:
             if c and os.path.exists(c):
@@ -196,7 +196,7 @@ class BridgeAPI:
         if getattr(sys, 'frozen', False):
             target = os.path.join(os.path.dirname(sys.executable), self.config_path)
         else:
-            candidates = [self.config_path, os.path.join("iuh_sniper", self.config_path)]
+            candidates = [self.config_path, os.path.join("iuh_ledger", self.config_path)]
             target = candidates[0]
             for c in candidates:
                 if os.path.exists(c):
@@ -541,7 +541,7 @@ class BridgeAPI:
             return {"success": False, "message": str(e)}
 
     def submit_login(self, username: str, password: str, captcha_code: str) -> Dict[str, Any]:
-        from iuh_sniper.core.crypto import encrypt_iuh_password
+        from iuh_ledger.core.crypto import encrypt_iuh_password
         try:
             if not self._login_token:
                 self.prepare_login_challenge()

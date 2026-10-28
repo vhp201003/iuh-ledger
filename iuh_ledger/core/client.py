@@ -11,7 +11,7 @@ import urllib.request
 import urllib.parse
 from http.cookiejar import CookieJar, Cookie
 from typing import Optional, Dict, Any
-from iuh_sniper.core.endpoints import IUHEndpoints
+from iuh_ledger.core.endpoints import IUHEndpoints
 
 class IUHClient:
     DEFAULT_HEADERS = {
@@ -28,8 +28,8 @@ class IUHClient:
             self.session_path = os.path.join(exe_dir, "session.json")
         elif os.path.exists("session.json"):
             self.session_path = "session.json"
-        elif os.path.exists(os.path.join("iuh_sniper", "session.json")):
-            self.session_path = os.path.join("iuh_sniper", "session.json")
+        elif os.path.exists(os.path.join("iuh_ledger", "session.json")):
+            self.session_path = os.path.join("iuh_ledger", "session.json")
         else:
             self.session_path = "session.json"
         self.cookie_jar = CookieJar()

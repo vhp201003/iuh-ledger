@@ -6,7 +6,7 @@ Transforms raw server HTML responses into strongly-typed domain models.
 import re
 import html as html_lib
 from typing import List, Optional
-from iuh_sniper.core.models import Semester, Subject, CourseClass, ClassSchedule, RegisteredCourse, StudentProfile
+from iuh_ledger.core.models import Semester, Subject, CourseClass, ClassSchedule, RegisteredCourse, StudentProfile
 
 def _clean_text(text: str) -> str:
     if not text:

@@ -10,16 +10,15 @@ block_cipher = None
 here = os.path.abspath(os.getcwd())
 
 datas = [
-    (os.path.join(here, 'iuh_sniper', 'gui'), os.path.join('iuh_sniper', 'gui')),
-    (os.path.join(here, 'iuh_sniper', 'gui'), 'gui'),
-    (os.path.join(here, 'iuh_sniper', 'assets'), os.path.join('iuh_sniper', 'assets')),
-    (os.path.join(here, 'iuh_sniper', 'assets'), 'assets'),
+    (os.path.join(here, 'iuh_ledger', 'gui'), os.path.join('iuh_ledger', 'gui')),
+    (os.path.join(here, 'iuh_ledger', 'gui'), 'gui'),
+    (os.path.join(here, 'iuh_ledger', 'assets'), os.path.join('iuh_ledger', 'assets')),
+    (os.path.join(here, 'iuh_ledger', 'assets'), 'assets'),
 ]
-if os.path.exists(os.path.join(here, 'iuh_sniper', 'config.json')):
-    datas.append((os.path.join(here, 'iuh_sniper', 'config.json'), '.'))
-elif os.path.exists(os.path.join(here, 'config.json')):
+if os.path.exists(os.path.join(here, 'config.json')):
     datas.append((os.path.join(here, 'config.json'), '.'))
-
+elif os.path.exists(os.path.join(here, 'iuh_ledger', 'config.json')):
+    datas.append((os.path.join(here, 'iuh_ledger', 'config.json'), '.'))
 binaries = []
 hiddenimports = [
     'webview',
@@ -66,14 +65,14 @@ for dll_name in runtime_dll_names:
             binaries.append((candidate_path, '.'))
             break
 
-icon_path = os.path.join(here, 'iuh_sniper', 'assets', 'icon.ico')
+icon_path = os.path.join(here, 'iuh_ledger', 'assets', 'icon.ico')
 if not os.path.exists(icon_path):
-    icon_path = os.path.join(here, 'iuh_sniper', 'gui', 'icon.ico')
+    icon_path = os.path.join(here, 'iuh_ledger', 'gui', 'icon.ico')
 if not os.path.exists(icon_path):
     icon_path = None
 
 a = Analysis(
-    [os.path.join(here, 'iuh_sniper', 'run_gui.py')],
+    [os.path.join(here, 'iuh_ledger', 'run_gui.py')],
     pathex=[here],
     binaries=binaries,
     datas=datas,

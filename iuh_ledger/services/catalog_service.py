@@ -4,10 +4,10 @@ Retrieves open subjects, classes, detailed schedules, and registered courses.
 """
 
 from typing import List, Optional
-from iuh_sniper.core.endpoints import IUHEndpoints
-from iuh_sniper.core.client import IUHClient
-from iuh_sniper.core.models import Semester, Subject, CourseClass, ClassSchedule, RegisteredCourse, StudentProfile
-from iuh_sniper.core.parser import IUHHTMLParser
+from iuh_ledger.core.endpoints import IUHEndpoints
+from iuh_ledger.core.client import IUHClient
+from iuh_ledger.core.models import Semester, Subject, CourseClass, ClassSchedule, RegisteredCourse, StudentProfile
+from iuh_ledger.core.parser import IUHHTMLParser
 
 class CatalogService:
     def __init__(self, client: IUHClient):
