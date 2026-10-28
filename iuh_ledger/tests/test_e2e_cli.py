@@ -355,6 +355,33 @@ class TestIUHSniperE2E(unittest.TestCase):
             self.assertTrue(preview_slots[0]["has_conflict"])
             self.assertIn("Cơ sở dữ liệu", preview_slots[0]["conflict_with"])
             self.assertEqual(p_res["conflict_count"], 2)
+
+            # 5. Zero-network embedded schedules & lich_lt/lich_th string synthesis fallback
+            class EmptyNetworkCatalog:
+                def get_registered_courses(self, id_dot="62"):
+                    return []
+                def get_class_schedule(self, guid, timeout=10):
+                    return []
+            bridge.catalog = EmptyNetworkCatalog()
+            demo_preview = {
+                "id_dot": "62",
+                "guid_lhp": "CqLpKkViKTvbXLsCooUfPg",
+                "ten_mon": "Âm nhạc, Nhạc lý và Guitar căn bản",
+                "ma_hp": "429700363401",
+                "ten_lop": "DHSH20A_TCTA",
+                "nhom_th": 1,
+                "lich_lt": "Thứ 3 (Tiết 7 - 9), Phòng N4.6 CLC",
+                "lich_th": "Thứ 5 (Tiết 1 - 3), Phòng H7.01",
+                "giang_vien": "TS Phan Trần Minh Khuê"
+            }
+            demo_res = bridge.get_weekly_schedule(id_dot="62", preview_classes=[demo_preview])
+            demo_prev_slots = [s for s in demo_res["slots"] if s.get("is_preview")]
+            self.assertEqual(len(demo_prev_slots), 2)
+            # LT on Tuesday afternoon (7-9) overlaps with default Cơ sở dữ liệu (Tuesday 7-9)
+            tue_slot = next(s for s in demo_prev_slots if s["day"] == "3")
+            thu_slot = next(s for s in demo_prev_slots if s["day"] == "5")
+            self.assertTrue(tue_slot["has_conflict"])
+            self.assertFalse(thu_slot["has_conflict"])
         finally:
             if os.path.exists(tmp_cfg):
                 os.remove(tmp_cfg)

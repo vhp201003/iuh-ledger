@@ -478,6 +478,64 @@ async function triggerDirectRegister(idDot, guidLhp, nhomTh, loaiDk, maMonCha, t
   }
 }
 
+function lookupClassRowMeta(maMon, guidLhp, normNhom) {
+  // 1. Search in subjectClassesCache
+  for (const [, res] of subjectClassesCache.entries()) {
+    const rows = (res && res.rows) || [];
+    const match = rows.find(r =>
+      String(r.guid_lhp) === String(guidLhp) &&
+      ((r.nhom_th ?? null) === normNhom || String(r.nhom_th || "") === String(normNhom || ""))
+    );
+    if (match) return match;
+  }
+  // 2. Fallback: scrape from rendered DOM row in drawer
+  const btn = document.querySelector(`button[onclick*="previewClassOnSchedule"][onclick*="${guidLhp}"]`);
+  const tr = btn ? btn.closest("tr") : null;
+  if (tr) {
+    const lines = Array.from(tr.querySelectorAll(".schedule-line")).map(el => el.textContent.trim());
+    const ltLine = lines.find(l => l.startsWith("LT:")) || "";
+    const thLine = lines.find(l => l.startsWith("TH:")) || "";
+    const gvEl = tr.querySelector(".lecturer-name");
+    return {
+      guid_lhp: guidLhp,
+      nhom_th: normNhom,
+      lich_lt: ltLine.replace(/^LT:\s*/i, "").trim(),
+      lich_th: thLine.replace(/^TH:\s*/i, "").trim(),
+      giang_vien: gvEl ? gvEl.textContent.replace(/^LT:\s*/i, "").trim() : "TS Phan Trần Minh Khuê",
+      schedules: []
+    };
+  }
+  // 3. Static default schedule lines for demo GUIDs
+  if (String(guidLhp) === "CqLpKkViKTvbXLsCooUfPg") {
+    return {
+      guid_lhp: guidLhp,
+      nhom_th: normNhom,
+      lich_lt: "Thứ 3 (Tiết 7 - 9), Phòng N4.6 CLC",
+      lich_th: normNhom === 2 ? "Thứ 6 (Tiết 4 - 6), Phòng H7.02" : "Thứ 5 (Tiết 1 - 3), Phòng H7.01",
+      giang_vien: "TS Phan Trần Minh Khuê",
+      schedules: []
+    };
+  }
+  if (String(guidLhp) === "sLeefKjYzKhtMOL0u6nFtg") {
+    return {
+      guid_lhp: guidLhp,
+      nhom_th: null,
+      lich_lt: "Thứ 4 (Tiết 1 - 3), Phòng H7.02",
+      lich_th: "",
+      giang_vien: "DH Lìu Cẩm Bình",
+      schedules: []
+    };
+  }
+  return {
+    guid_lhp: guidLhp,
+    nhom_th: normNhom,
+    lich_lt: "Thứ 2 (Tiết 1 - 3), Phòng B2.04",
+    lich_th: "",
+    giang_vien: "PGS.TS Nguyễn Minh Tuấn",
+    schedules: []
+  };
+}
+
 async function addTargetToQueue(idDot, maMon, maHp, tenMon, guidLhp, tenLop, nhomTh = null, loaiDk = 1, maMonCha = "") {
   const normNhom = (nhomTh !== null && nhomTh !== undefined && String(nhomTh).trim() !== "" && String(nhomTh) !== "null")
     ? Number(nhomTh)
@@ -485,6 +543,7 @@ async function addTargetToQueue(idDot, maMon, maHp, tenMon, guidLhp, tenLop, nho
   const targetKey = `${guidLhp}_${normNhom !== null ? normNhom : 0}`;
   const groupText = normNhom !== null ? `Nhóm TH ${normNhom}` : "Thuần LT";
   const loaiText = LOAI_DK_LABELS[loaiDk || currentLoaiDk] || "Học mới";
+  const rowMeta = lookupClassRowMeta(maMon, guidLhp, normNhom);
 
   if (hasBridge()) {
     try {
@@ -497,7 +556,11 @@ async function addTargetToQueue(idDot, maMon, maHp, tenMon, guidLhp, tenLop, nho
         tenLop,
         normNhom,
         loaiDk || currentLoaiDk,
-        maMonCha || ""
+        maMonCha || "",
+        rowMeta.schedules || [],
+        rowMeta.lich_lt || "",
+        rowMeta.lich_th || "",
+        rowMeta.giang_vien || ""
       );
       if (res && res.targets) {
         sniperTargets = res.targets;
@@ -518,7 +581,11 @@ async function addTargetToQueue(idDot, maMon, maHp, tenMon, guidLhp, tenLop, nho
         nhom_th: normNhom,
         loai_dk: Number(loaiDk || currentLoaiDk),
         ma_mon_cha: String(maMonCha || ""),
-        registered: false
+        registered: false,
+        schedules: rowMeta.schedules || [],
+        lich_lt: rowMeta.lich_lt || "",
+        lich_th: rowMeta.lich_th || "",
+        giang_vien: rowMeta.giang_vien || ""
       });
     }
   }
@@ -1070,7 +1137,8 @@ function escapeAttr(str) {
 /* WEEKLY ACADEMIC SCHEDULE (Ported from IUH XemLichHocTuan via /skill:xia)  */
 /* ========================================================================= */
 let currentScheduleMode = "preview"; // "preview" (Official + Watchdog/Preview) or "official"
-let temporaryPreviewTarget = null;
+let previewSandboxTargets = []; // Multi-subject preview sandbox (replaces same ma_mon, accumulates distinct ma_mon)
+let _returnContext = null; // Stores { maMon, scrollTop } when jumping from Open Subjects to Timetable
 
 function setScheduleMode(mode) {
   currentScheduleMode = mode;
@@ -1081,11 +1149,42 @@ function setScheduleMode(mode) {
   loadWeeklySchedule();
 }
 
+function returnToSubjectDrawer() {
+  switchView("open");
+  if (_returnContext) {
+    const targetRow = document.querySelector(`tr[data-mamh="${_returnContext.maMon}"]`);
+    const drawer = document.getElementById("drawer-" + _returnContext.maMon);
+    if (drawer) drawer.hidden = false;
+    if (targetRow) {
+      targetRow.classList.add("ledger-row--selected");
+      targetRow.setAttribute("aria-expanded", "true");
+    }
+    setTimeout(() => {
+      window.scrollTo({ top: _returnContext.scrollTop || 0, behavior: "smooth" });
+    }, 40);
+  }
+}
+
 function previewClassOnSchedule(idDot, maMon, maHp, tenMon, guidLhp, tenLop, nhomTh = null) {
   const normNhom = (nhomTh !== null && nhomTh !== undefined && String(nhomTh).trim() !== "" && String(nhomTh) !== "null")
     ? Number(nhomTh)
     : null;
-  temporaryPreviewTarget = {
+  const targetKey = `${guidLhp}_${normNhom !== null ? normNhom : 0}`;
+  const rowMeta = lookupClassRowMeta(maMon, guidLhp, normNhom);
+
+  // Capture return context so user can jump back to the exact subject drawer in 1 click
+  _returnContext = {
+    maMon: String(maMon),
+    scrollTop: window.scrollY || document.documentElement.scrollTop || 0
+  };
+  const btnReturn = document.getElementById("btn-return-to-open");
+  if (btnReturn) {
+    btnReturn.hidden = false;
+    btnReturn.textContent = `Quay lại: ${tenMon}`;
+  }
+
+  const newEntry = {
+    target_key: targetKey,
     id_dot: String(idDot || currentSemesterId),
     ma_mon: String(maMon),
     ma_hp: String(maHp),
@@ -1093,8 +1192,23 @@ function previewClassOnSchedule(idDot, maMon, maHp, tenMon, guidLhp, tenLop, nho
     guid_lhp: String(guidLhp),
     ten_lop: String(tenLop),
     nhom_th: normNhom,
+    loai_dk: currentLoaiDk,
+    ma_mon_cha: rowMeta.ma_mon_cha || "",
+    schedules: rowMeta.schedules || [],
+    lich_lt: rowMeta.lich_lt || "",
+    lich_th: rowMeta.lich_th || "",
+    giang_vien: rowMeta.giang_vien || "",
     is_temp_preview: true
   };
+
+  // Replace-per-subject semantics (Kongming recommendation): replace existing preview of same ma_mon, accumulate across different subjects
+  const existingIdx = previewSandboxTargets.findIndex(item => String(item.ma_mon) === String(maMon));
+  if (existingIdx !== -1) {
+    previewSandboxTargets[existingIdx] = newEntry;
+  } else {
+    previewSandboxTargets.push(newEntry);
+  }
+
   currentScheduleMode = "preview";
   const btnOfficial = document.getElementById("btn-sched-mode-official");
   const btnPreview = document.getElementById("btn-sched-mode-preview");
@@ -1103,9 +1217,124 @@ function previewClassOnSchedule(idDot, maMon, maHp, tenMon, guidLhp, tenLop, nho
   switchView("schedule");
 }
 
-function clearTemporaryPreview() {
-  temporaryPreviewTarget = null;
+function removePreviewFromSandbox(targetKey) {
+  previewSandboxTargets = previewSandboxTargets.filter(item => item.target_key !== targetKey);
   loadWeeklySchedule();
+}
+
+function clearTemporaryPreview() {
+  previewSandboxTargets = [];
+  loadWeeklySchedule();
+}
+
+function parseStringScheduleSlotsForBrowser(p) {
+  const out = [];
+  const gv = p.giang_vien || "TS Phan Trần Minh Khuê";
+  const fullLop = p.ma_hp && !String(p.ten_lop).includes(String(p.ma_hp))
+    ? `${p.ten_lop} - ${p.ma_hp}`
+    : String(p.ten_lop);
+  const pairs = [
+    { loai: "ly_thuyet", raw: p.lich_lt || "", ghi_chu: "" },
+    { loai: "thuc_hanh", raw: p.lich_th || "", ghi_chu: p.nhom_th ? `Nhóm TH ${p.nhom_th}` : "Thực hành" }
+  ];
+  pairs.forEach(pair => {
+    if (!pair.raw) return;
+    String(pair.raw).split("|").forEach(seg => {
+      const mDay = seg.match(/(Thứ\s*[2-7]|Chủ\s*nhật)/i);
+      const mTiet = seg.match(/Tiết\s*(\d+)(?:\s*(?:->|-)\s*(\d+))?/i);
+      if (!mDay || !mTiet) return;
+      const dayRaw = mDay[1].toLowerCase();
+      const dayCode = dayRaw.includes("chủ") ? "CN" : dayRaw.replace(/\D+/g, "");
+      const st = parseInt(mTiet[1], 10);
+      const en = mTiet[2] ? parseInt(mTiet[2], 10) : st;
+      const ca = st <= 6 ? "sang" : (st <= 12 ? "chieu" : "toi");
+      const mPhong = seg.match(/Phòng\s*([^|·,]+)/i);
+      const phong = mPhong ? mPhong[1].trim() : "N4.6 CLC";
+      out.push({
+        day: dayCode,
+        ca: ca,
+        ten_mon: p.ten_mon || "Học phần dự kiến",
+        ma_lhp: p.ma_hp || "",
+        ten_lop: fullLop,
+        tiet: `${st} - ${en}`,
+        tiet_start: st,
+        tiet_end: en,
+        phong: phong,
+        giang_vien: gv,
+        ghi_chu: pair.ghi_chu,
+        loai: pair.loai,
+        is_preview: true,
+        target_key: p.target_key
+      });
+    });
+  });
+  return out;
+}
+
+function renderSandboxTray(previewClasses, slots) {
+  const tray = document.getElementById("schedule-sandbox-tray");
+  const titleEl = document.getElementById("sandbox-tray-title");
+  const gridEl = document.getElementById("sandbox-tray-cards");
+  if (!tray || !gridEl) return;
+
+  if (currentScheduleMode !== "preview" || !previewClasses || previewClasses.length === 0) {
+    tray.hidden = true;
+    gridEl.innerHTML = "";
+    return;
+  }
+
+  tray.hidden = false;
+  if (titleEl) {
+    titleEl.textContent = `Khay ướm thử & ghép lịch (${previewClasses.length} lớp đang ướm trên Thời khóa biểu)`;
+  }
+
+  gridEl.innerHTML = previewClasses.map(p => {
+    const tKey = p.target_key || `${p.guid_lhp}_${p.nhom_th !== null && p.nhom_th !== undefined ? p.nhom_th : 0}`;
+    const groupText = p.nhom_th !== null && p.nhom_th !== undefined ? `Nhóm TH ${p.nhom_th}` : "Thuần LT";
+    const pSlots = (slots || []).filter(s => s.is_preview && (s.target_key === tKey || s.ten_mon === p.ten_mon));
+    const conflicts = [];
+    pSlots.forEach(s => {
+      if (s.has_conflict && Array.isArray(s.conflict_with)) {
+        s.conflict_with.forEach(cName => {
+          if (!conflicts.includes(cName)) conflicts.push(cName);
+        });
+      }
+    });
+    const hasConflict = conflicts.length > 0;
+    const cardClass = hasConflict ? "sandbox-card sandbox-card--conflict" : "sandbox-card";
+    const statusBadge = hasConflict
+      ? `<span class="stamp-badge stamp-badge--conflict">Trùng tiết: ${escapeHtml(conflicts.join(", "))}</span>`
+      : `<span class="stamp-badge">Khớp lịch (0 trùng)</span>`;
+
+    const schedSummary = [
+      p.lich_lt ? `LT: ${p.lich_lt}` : "",
+      p.lich_th ? `TH: ${p.lich_th}` : ""
+    ].filter(Boolean).join(" | ") || `${pSlots.length} buổi/tuần trên lưới TKB`;
+
+    const inWatchdog = sniperTargets.some(t => (t.target_key || `${t.guid_lhp}_${t.nhom_th || 0}`) === tKey);
+    const nhomArg = (p.nhom_th !== null && p.nhom_th !== undefined) ? Number(p.nhom_th) : "null";
+
+    return `
+      <div class="${cardClass}">
+        <div class="sandbox-card__top">
+          <div>
+            <div class="sandbox-card__title">${escapeHtml(p.ten_mon)}</div>
+            <div class="sandbox-card__meta mono">${escapeHtml(p.ten_lop)} (${escapeHtml(groupText)})</div>
+          </div>
+          ${statusBadge}
+        </div>
+        <div class="sandbox-card__meta">${escapeHtml(schedSummary)}</div>
+        <div class="btn-row-actions">
+          <button type="button" class="btn btn--accent-outline" onclick="triggerDirectRegister('${escapeAttr(p.id_dot || currentSemesterId)}', '${escapeAttr(p.guid_lhp)}', ${nhomArg}, ${p.loai_dk || currentLoaiDk}, '${escapeAttr(p.ma_mon_cha || "")}', '${escapeAttr(p.ten_mon)}', '${escapeAttr(p.ten_lop)}')">Đăng ký ngay</button>
+          ${inWatchdog
+            ? `<span class="stamp-badge stamp-badge--neutral">Đã trong Trạm giám sát</span>`
+            : `<button type="button" class="btn" onclick="addTargetToQueue('${escapeAttr(p.id_dot || currentSemesterId)}', '${escapeAttr(p.ma_mon)}', '${escapeAttr(p.ma_hp)}', '${escapeAttr(p.ten_mon)}', '${escapeAttr(p.guid_lhp)}', '${escapeAttr(p.ten_lop)}', ${nhomArg}, ${p.loai_dk || currentLoaiDk}, '${escapeAttr(p.ma_mon_cha || "")}'); loadWeeklySchedule();">Thêm giám sát</button>`
+          }
+          <button type="button" class="btn" onclick="removePreviewFromSandbox('${escapeAttr(tKey)}')">Bỏ ướm</button>
+        </div>
+      </div>
+    `;
+  }).join("");
 }
 
 async function loadWeeklySchedule() {
@@ -1123,13 +1352,15 @@ async function loadWeeklySchedule() {
     if (sniperTargets && sniperTargets.length > 0) {
       previewClasses = sniperTargets.filter(t => String(t.id_dot || currentSemesterId) === String(currentSemesterId));
     }
-    if (temporaryPreviewTarget && String(temporaryPreviewTarget.id_dot || currentSemesterId) === String(currentSemesterId)) {
-      const exists = previewClasses.some(
-        p => p.guid_lhp === temporaryPreviewTarget.guid_lhp && p.nhom_th === temporaryPreviewTarget.nhom_th
-      );
-      if (!exists) {
-        previewClasses = [...previewClasses, temporaryPreviewTarget];
-      }
+    if (previewSandboxTargets && previewSandboxTargets.length > 0) {
+      previewSandboxTargets.forEach(tempItem => {
+        const exists = previewClasses.some(
+          p => p.guid_lhp === tempItem.guid_lhp && (p.nhom_th ?? null) === (tempItem.nhom_th ?? null)
+        );
+        if (!exists) {
+          previewClasses.push(tempItem);
+        }
+      });
     }
   }
 
@@ -1163,38 +1394,39 @@ async function loadWeeklySchedule() {
     ];
     if (previewClasses.length > 0) {
       previewClasses.forEach(p => {
-        sampleSlots.push({
-          day: "3",
-          ca: "chieu",
-          ten_mon: p.ten_mon || "Học phần dự kiến",
-          ten_lop: `${p.ten_lop} - ${p.ma_hp || ""}`,
-          tiet: "7 - 9",
-          tiet_start: 7,
-          tiet_end: 9,
-          phong: "N4.6 CLC (Dự kiến)",
-          giang_vien: "TS Phan Trần Minh Khuê",
-          ghi_chu: p.nhom_th ? `Nhóm TH ${p.nhom_th}` : "Thuần LT",
-          loai: "ly_thuyet",
-          is_preview: true,
-          has_conflict: true,
-          conflict_with: ["Cơ sở dữ liệu"]
-        });
+        const parsedPreview = parseStringScheduleSlotsForBrowser(p);
+        parsedPreview.forEach(ps => sampleSlots.push(ps));
       });
-      sampleSlots[2].has_conflict = true;
-      sampleSlots[2].conflict_with = [previewClasses[0].ten_mon || "Học phần dự kiến"];
+      // Detect overlaps in browser fallback mode
+      for (let i = 0; i < sampleSlots.length; i++) {
+        const s1 = sampleSlots[i];
+        s1.has_conflict = false;
+        s1.conflict_with = [];
+        for (let j = 0; j < sampleSlots.length; j++) {
+          if (i === j || s1.day !== sampleSlots[j].day) continue;
+          const s2 = sampleSlots[j];
+          if (s1.ten_mon === s2.ten_mon && s1.is_preview === s2.is_preview) continue;
+          if (Math.max(s1.tiet_start, s2.tiet_start) <= Math.min(s1.tiet_end, s2.tiet_end)) {
+            s1.has_conflict = true;
+            if (!s1.conflict_with.includes(s2.ten_mon)) s1.conflict_with.push(s2.ten_mon);
+          }
+        }
+      }
     }
     scheduleData = {
       success: true,
       registered_count: 6,
-      conflict_count: previewClasses.length > 0 ? 2 : 0,
+      conflict_count: sampleSlots.filter(s => s.has_conflict).length,
       slots: sampleSlots
     };
   }
 
-  const slots = scheduleData.slots || [];
+  const slots = (scheduleData.slots || []).slice().sort((a, b) => (a.tiet_start || 0) - (b.tiet_start || 0));
   let totalSlots = 0;
   let previewCount = 0;
   let conflictCount = 0;
+
+  renderSandboxTray(previewClasses, slots);
 
   slots.forEach(slot => {
     const d = slot.day;
@@ -1246,16 +1478,13 @@ async function loadWeeklySchedule() {
   if (conflictBanner) {
     if (totalSlots === 0) {
       conflictBanner.hidden = false;
-      conflictBanner.textContent = `Học kỳ hiện tại (Đợt ${currentSemesterId}) chưa có môn đăng ký và chưa có lớp nào trong Trạm giám sát. Hãy bấm "Thêm giám sát" hoặc "Xem thử TKB" ở danh sách lớp mở để ướm thử lịch!`;
+      conflictBanner.textContent = `Học kỳ hiện tại (Đợt ${currentSemesterId}) chưa có môn đăng ký và chưa có lớp nào trong Khay ướm thử. Hãy bấm "Xem thử TKB" hoặc "Thêm giám sát" ở danh sách lớp mở để ướm thử lịch!`;
     } else if (conflictCount > 0) {
       conflictBanner.hidden = false;
-      conflictBanner.innerHTML = `Phát hiện <strong>${conflictCount} buổi học bị trùng tiết</strong> khi ghép lớp dự kiến! Vui lòng chọn nhóm lớp khác không trùng lịch. ${temporaryPreviewTarget ? '<button type="button" class="btn" style="margin-left: 8px; height: 26px;" onclick="clearTemporaryPreview()">Bỏ lớp đang xem thử</button>' : ''}`;
-    } else if (currentScheduleMode === "preview" && temporaryPreviewTarget) {
-      conflictBanner.hidden = false;
-      conflictBanner.innerHTML = `Đang xem thử lịch ghép của lớp <strong>${escapeHtml(temporaryPreviewTarget.ten_mon)} (${escapeHtml(temporaryPreviewTarget.ten_lop)})</strong> — Hoàn toàn khớp, không trùng tiết nào! <button type="button" class="btn" style="margin-left: 8px; height: 26px;" onclick="clearTemporaryPreview()">Bỏ xem thử</button>`;
+      conflictBanner.innerHTML = `Phát hiện <strong>${conflictCount} buổi học bị trùng tiết</strong> khi ghép lớp dự kiến! Bạn có thể bấm <strong>Quay lại chọn lớp</strong> để chọn nhóm TH khác hoặc bấm <strong>Bỏ ướm</strong> trên thẻ bị trùng.`;
     } else if (currentScheduleMode === "preview" && previewCount > 0) {
       conflictBanner.hidden = false;
-      conflictBanner.textContent = `Đang hiển thị kết hợp các môn đã đăng ký cùng ${previewCount} buổi học từ Trạm giám sát — Không phát hiện xung đột lịch học.`;
+      conflictBanner.innerHTML = `Tất cả <strong>${previewClasses.length} lớp đang ướm thử (${previewCount} buổi học)</strong> đều hoàn toàn khớp với Thời khóa biểu hiện tại (0 trùng tiết). Bạn có thể bấm <strong>Đăng ký ngay</strong> hoặc <strong>Thêm giám sát</strong> ngay trên Khay ướm thử!`;
     } else {
       conflictBanner.hidden = true;
       conflictBanner.textContent = "";

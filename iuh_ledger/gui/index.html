@@ -384,13 +384,24 @@
               <button type="button" class="btn btn-segmented active" id="btn-sched-mode-preview" onclick="setScheduleMode('preview')">Tổng quan ghép lớp (Đã ĐK + Dự kiến)</button>
               <button type="button" class="btn btn-segmented" id="btn-sched-mode-official" onclick="setScheduleMode('official')">Chỉ lớp đã đăng ký</button>
             </div>
+            <button type="button" class="btn" id="btn-return-to-open" onclick="returnToSubjectDrawer()" hidden>Quay lại chọn lớp</button>
           </div>
           <span class="mono" id="schedule-stat-meta">Đang đồng bộ lịch học…</span>
         </div>
 
-        <div id="schedule-conflict-banner" class="inline-banner" role="status" aria-live="polite" hidden></div>
+        <!-- INTERACTIVE SCHEDULE SANDBOX TRAY -->
+        <div id="schedule-sandbox-tray" class="sandbox-tray" aria-label="Khay ướm thử và ghép lịch" hidden>
+          <div class="sandbox-tray__header">
+            <span class="sandbox-tray__title" id="sandbox-tray-title">Khay ướm thử &amp; ghép lịch (0 lớp)</span>
+            <div class="btn-row-actions">
+              <button type="button" class="btn" onclick="switchView('open')">Chọn thêm lớp mở</button>
+              <button type="button" class="btn" onclick="clearTemporaryPreview()">Xóa khay ướm thử</button>
+            </div>
+          </div>
+          <div class="sandbox-tray__grid" id="sandbox-tray-cards"></div>
+        </div>
 
-        <!-- SCHEDULE CLASSIFICATION LEGEND (5 nhóm màu chuẩn từ cổng sv.iuh.edu.vn + Dự kiến + Trùng lịch) -->
+        <div id="schedule-conflict-banner" class="inline-banner" role="status" aria-live="polite" hidden></div>
         <div class="schedule-legend" aria-label="Chú giải phân loại lịch học">
           <div class="legend-item"><span class="legend-pill legend-pill--theory"></span><span>Lịch học lý thuyết</span></div>
           <div class="legend-item"><span class="legend-pill legend-pill--practice"></span><span>Lịch học thực hành</span></div>

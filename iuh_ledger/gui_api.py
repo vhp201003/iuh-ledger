@@ -11,8 +11,8 @@ import time
 import base64
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict
+from types import SimpleNamespace
 from typing import Dict, Any, List, Optional
-
 from iuh_ledger.core.endpoints import IUHEndpoints
 from iuh_ledger.core.client import IUHClient
 from iuh_ledger.core.auth import IUHAuthenticator
@@ -115,9 +115,9 @@ def flatten_class_with_schedules(
             "giang_vien": gv_str,
             "phong": ", ".join(all_rooms),
             "co_so": ", ".join(all_campuses),
-            "thoi_gian": ", ".join(all_dates)
+            "thoi_gian": ", ".join(all_dates),
+            "schedules": [asdict(s) for s in (schedules or [])]
         }]
-
     flattened: List[Dict[str, Any]] = []
     for grp_num in sorted(th_by_group.keys()):
         th_rows = th_by_group[grp_num]
@@ -150,9 +150,9 @@ def flatten_class_with_schedules(
             "giang_vien": gv_combined,
             "phong": ", ".join(grp_rooms),
             "co_so": ", ".join(grp_campuses),
-            "thoi_gian": ", ".join(grp_dates)
+            "thoi_gian": ", ".join(grp_dates),
+            "schedules": [asdict(s) for s in (lt_rows + th_rows)]
         })
-
     return flattened
 
 
@@ -434,7 +434,11 @@ class BridgeAPI:
         ten_lop: str,
         nhom_th: Optional[Any] = None,
         loai_dk: int = 1,
-        ma_mon_cha: str = ""
+        ma_mon_cha: str = "",
+        schedules: Optional[List[Dict[str, Any]]] = None,
+        lich_lt: str = "",
+        lich_th: str = "",
+        giang_vien: str = ""
     ) -> Dict[str, Any]:
         """
         Adds a target class + practice group to the sniper queue using composite key (guid_lhp, nhom_th).
@@ -459,7 +463,11 @@ class BridgeAPI:
                 "nhom_th": norm_nhom,
                 "loai_dk": int(loai_dk),
                 "ma_mon_cha": str(ma_mon_cha or ""),
-                "registered": False
+                "registered": False,
+                "schedules": schedules or [],
+                "lich_lt": str(lich_lt or ""),
+                "lich_th": str(lich_th or ""),
+                "giang_vien": str(giang_vien or "")
             }
             targets.append(entry)
             self._save_config()
@@ -656,11 +664,12 @@ class BridgeAPI:
         except Exception:
             pass
 
-        # Fallback to authentic schedule template ONLY when offline / no live session and no preview
-        if not raw_slots and not has_live_session and not preview_classes:
-            raw_slots = self._get_default_authentic_schedule()
+        # Fallback to authentic schedule template when no registered courses exist in this semester
+        # (so preview classes can be visually compared against a populated baseline timetable)
+        if not raw_slots and (not has_live_session or preview_classes):
+            raw_slots = list(self._get_default_authentic_schedule())
 
-        # Append preview classes if provided (or from sniper targets belonging to id_dot)
+        # Append preview classes if provided (from Schedule Sandbox or Watchdog queue)
         if preview_classes:
             for p in preview_classes:
                 p_dot = str(p.get("id_dot", id_dot))
@@ -671,26 +680,39 @@ class BridgeAPI:
                 ma_lhp = p.get("ma_hp", "") or p.get("ma_lhp", "")
                 ten_lop = p.get("ten_lop", "")
                 p_nhom = extract_nhom_th_int(p.get("nhom_th"))
-                if guid:
+                p_scheds: List[Any] = []
+
+                # 1. Prefer pre-fetched embedded schedules if present (Zero network latency & works offline)
+                embedded_scheds = p.get("schedules")
+                if isinstance(embedded_scheds, list) and len(embedded_scheds) > 0:
+                    p_scheds = [SimpleNamespace(**s) if isinstance(s, dict) else s for s in embedded_scheds]
+
+                # 2. Otherwise query live endpoint by guid_lhp
+                if not p_scheds and guid:
                     try:
                         p_scheds = self.catalog.get_class_schedule(guid, timeout=10)
-                        for ps in p_scheds:
-                            s_nhom = extract_nhom_th_int(getattr(ps, "nhom_th", None))
-                            if s_nhom is not None and p_nhom is not None and s_nhom != p_nhom:
-                                continue
-                            parsed = self._parse_schedule_slot(
-                                ps,
-                                ten_mon,
-                                ma_lhp,
-                                ten_lop,
-                                is_preview=True,
-                                selected_nhom=p_nhom
-                            )
-                            if parsed:
-                                raw_slots.append(parsed)
                     except Exception:
-                        pass
+                        p_scheds = []
 
+                # 3. Last resort: synthesize schedule objects from lich_lt / lich_th summary strings
+                if not p_scheds:
+                    p_scheds = self._synthesize_schedules_from_strings(p)
+
+                for ps in p_scheds:
+                    s_nhom = extract_nhom_th_int(getattr(ps, "nhom_th", None))
+                    if s_nhom is not None and p_nhom is not None and s_nhom != p_nhom:
+                        continue
+                    parsed = self._parse_schedule_slot(
+                        ps,
+                        ten_mon,
+                        ma_lhp,
+                        ten_lop,
+                        is_preview=True,
+                        selected_nhom=p_nhom
+                    )
+                    if parsed:
+                        parsed["target_key"] = p.get("target_key") or f"{guid}_{p_nhom if p_nhom is not None else 0}"
+                        raw_slots.append(parsed)
         slots = self._dedupe_and_detect_conflicts(raw_slots)
         conflict_count = sum(1 for sl in slots if sl.get("has_conflict"))
 
@@ -702,6 +724,43 @@ class BridgeAPI:
             "conflict_count": conflict_count,
             "slots": slots
         }
+
+    @staticmethod
+    def _synthesize_schedules_from_strings(p: Dict[str, Any]) -> List[Any]:
+        """
+        Synthesizes ClassSchedule-compatible objects from formatted summary strings (lich_lt, lich_th)
+        when live GetChiTietLichHoc is unavailable or for demo/offline preview classes.
+        """
+        results = []
+        gv = str(p.get("giang_vien", "") or "Đang cập nhật")
+        thoi_gian = str(p.get("thoi_gian", "") or "")
+        co_so = str(p.get("co_so", "") or "Cơ sở 1")
+        p_nhom = p.get("nhom_th")
+
+        for loai_code, raw_str, nhom_val in [
+            ("LT", str(p.get("lich_lt", "") or ""), ""),
+            ("TH", str(p.get("lich_th", "") or ""), str(p_nhom) if p_nhom is not None else "1")
+        ]:
+            if not raw_str:
+                continue
+            for seg in re.split(r'\s*\|\s*', raw_str):
+                seg = seg.strip()
+                if not seg or "chưa công bố" in seg.lower():
+                    continue
+                m_phong = re.search(r'Phòng\s*([^|·,]+)', seg, re.IGNORECASE)
+                phong = m_phong.group(1).strip() if m_phong else (str(p.get("phong", "")) or "N4.6 CLC")
+                results.append(SimpleNamespace(
+                    stt=str(len(results) + 1),
+                    loai_tiet=loai_code,
+                    thu_tiet=f"{loai_code} - {seg}",
+                    nhom_th=nhom_val if loai_code == "TH" else "",
+                    phong=phong,
+                    day_nha="",
+                    co_so=co_so,
+                    giang_vien=gv,
+                    thoi_gian=thoi_gian
+                ))
+        return results
 
     @staticmethod
     def _parse_date_range(tg_str: str):
@@ -794,6 +853,7 @@ class BridgeAPI:
                     if other_name not in s1["conflict_with"]:
                         s1["conflict_with"].append(other_name)
 
+        slots.sort(key=lambda x: (str(x.get("day", "")), int(x.get("tiet_start", 0) or 0)))
         return slots
 
     def _parse_schedule_slot(
@@ -883,8 +943,11 @@ class BridgeAPI:
                 "ma_lhp": "429701380102",
                 "ten_lop": "DHTMDT20B_TCTA - 429701380102",
                 "tiet": "4 - 6",
+                "tiet_start": 4,
+                "tiet_end": 6,
                 "phong": "N4.4 (N - Cơ sở Nguyễn Văn Dung)",
                 "giang_vien": "Nguyễn Thị Kim Chung",
+                "thoi_gian": "05/01/2026 - 20/04/2026",
                 "ghi_chu": "",
                 "loai": "ly_thuyet",
                 "is_preview": False
@@ -896,8 +959,11 @@ class BridgeAPI:
                 "ma_lhp": "429701380102",
                 "ten_lop": "DHTMDT20B_TCTA - 429701380102",
                 "tiet": "13 - 15",
+                "tiet_start": 13,
+                "tiet_end": 15,
                 "phong": "Trực tuyến (Cơ sở 1)",
                 "giang_vien": "Nguyễn Thị Kim Chung",
+                "thoi_gian": "05/01/2026 - 20/04/2026",
                 "ghi_chu": "Teams: fbj2dsr",
                 "loai": "truc_tuyen",
                 "is_preview": False
@@ -905,12 +971,15 @@ class BridgeAPI:
             {
                 "day": "3",
                 "ca": "chieu",
-                "ten_mon": "Tài chính doanh nghiệp",
-                "ma_lhp": "429700380206",
-                "ten_lop": "DHKT21D_TCTA - 429700380206",
+                "ten_mon": "Cơ sở dữ liệu",
+                "ma_lhp": "429701765902",
+                "ten_lop": "DHTMDT20B_TCTA - 429701765902",
                 "tiet": "7 - 9",
-                "phong": "N10.3 (N - Cơ sở Nguyễn Văn Dung)",
-                "giang_vien": "Lại Cao Mai Phương",
+                "tiet_start": 7,
+                "tiet_end": 9,
+                "phong": "N4.6 CLC (CS Nguyễn Văn Dung)",
+                "giang_vien": "TS Phan Trần Minh Khuê",
+                "thoi_gian": "13/01/2026 - 07/04/2026",
                 "ghi_chu": "",
                 "loai": "ly_thuyet",
                 "is_preview": False
@@ -918,25 +987,31 @@ class BridgeAPI:
             {
                 "day": "4",
                 "ca": "sang",
-                "ten_mon": "Quản trị tác nghiệp Thương mại điện tử",
-                "ma_lhp": "429701766202",
-                "ten_lop": "DHTMDT20B_TCTA - 429701766202",
-                "tiet": "1 - 3",
-                "phong": "N4.4 (N - Cơ sở Nguyễn Văn Dung)",
-                "giang_vien": "Võ Thị Minh Nhựt",
-                "ghi_chu": "",
-                "loai": "ly_thuyet",
+                "ten_mon": "Cơ sở dữ liệu",
+                "ma_lhp": "429701765902",
+                "ten_lop": "DHTMDT20B_TCTA - 429701765902",
+                "tiet": "4 - 6",
+                "tiet_start": 4,
+                "tiet_end": 6,
+                "phong": "H7.02 (H (CS1) - Cơ sở 1)",
+                "giang_vien": "DH Lìu Cẩm Bình",
+                "thoi_gian": "14/01/2026 - 08/04/2026",
+                "ghi_chu": "Nhóm TH 1",
+                "loai": "thuc_hanh",
                 "is_preview": False
             },
             {
                 "day": "6",
                 "ca": "chieu",
-                "ten_mon": "Tài chính doanh nghiệp",
-                "ma_lhp": "429700380206",
-                "ten_lop": "DHKT21D_TCTA - 429700380206",
+                "ten_mon": "Nguyên lý kế toán",
+                "ma_lhp": "429700153403",
+                "ten_lop": "DHTMDT20B_TCTA - 429700153403",
                 "tiet": "7 - 9",
-                "phong": "N10.3 (N - Cơ sở Nguyễn Văn Dung)",
-                "giang_vien": "Lại Cao Mai Phương",
+                "tiet_start": 7,
+                "tiet_end": 9,
+                "phong": "N4.6 CLC (CS Nguyễn Văn Dung)",
+                "giang_vien": "TS Đỗ Thị Thu Thảo",
+                "thoi_gian": "09/01/2026 - 08/05/2026",
                 "ghi_chu": "",
                 "loai": "ly_thuyet",
                 "is_preview": False
@@ -948,9 +1023,12 @@ class BridgeAPI:
                 "ma_lhp": "429701766502",
                 "ten_lop": "DHTMDT20B_TCTA - 429701766502",
                 "tiet": "1 - 3",
+                "tiet_start": 1,
+                "tiet_end": 3,
                 "phong": "H3.1.1 (H (CS1) - Cơ sở 1)",
                 "giang_vien": "Lê Thị Ánh Tuyết",
-                "ghi_chu": "",
+                "thoi_gian": "17/01/2026 - 11/04/2026",
+                "ghi_chu": "Nhóm TH 1",
                 "loai": "thuc_hanh",
                 "is_preview": False
             },
@@ -961,8 +1039,11 @@ class BridgeAPI:
                 "ma_lhp": "429701525716",
                 "ten_lop": "DH Điện tử 20C TCTA - 429701525716",
                 "tiet": "7 - 12",
+                "tiet_start": 7,
+                "tiet_end": 12,
                 "phong": "X10.01",
                 "giang_vien": "",
+                "thoi_gian": "10/05/2026 - 10/05/2026",
                 "ghi_chu": "Lịch thi kết thúc học phần",
                 "loai": "lich_thi",
                 "is_preview": False
