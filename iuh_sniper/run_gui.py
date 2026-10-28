@@ -6,12 +6,24 @@ Starts native desktop window powered by Edge WebView2 / Chromium and Hallmark Do
 import os
 import sys
 
-# Ensure workspace root is in sys.path
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Ensure workspace root and frozen _internal DLL directories are registered before loading clr / webview
+if getattr(sys, 'frozen', False):
+    _meipass = getattr(sys, '_MEIPASS', os.path.dirname(sys.executable))
+    _exe_dir = os.path.dirname(sys.executable)
+    for _dll_dir in (_meipass, _exe_dir, os.path.join(_meipass, 'pythonnet', 'runtime')):
+        if os.path.isdir(_dll_dir):
+            if hasattr(os, 'add_dll_directory'):
+                try:
+                    os.add_dll_directory(_dll_dir)
+                except Exception:
+                    pass
+            if _dll_dir not in os.environ.get('PATH', ''):
+                os.environ['PATH'] = _dll_dir + os.pathsep + os.environ.get('PATH', '')
+else:
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import webview
 from iuh_sniper.gui_api import BridgeAPI
-
 def get_base_dir():
     if getattr(sys, 'frozen', False):
         return getattr(sys, '_MEIPASS', os.path.dirname(sys.executable))

@@ -71,19 +71,23 @@ python -m iuh_sniper.run_gui
 
 ---
 
-## 📦 Đóng Gói Thành File Thực Thi Độc Lập (.exe)
+## 📦 Sử Dụng Bản Portable (.ZIP) & Đóng Gói Thực Thi Độc Lập (.exe)
 
-Dự án cung cấp sẵn script đóng gói 1-click sử dụng PyInstaller:
+### Cách 1: Dành cho Người dùng cuối (Không cần cài Python)
+1. Tải gói **`IUH_Ledger_Portable.zip`** (trong mục **Releases** trên GitHub hoặc tại `iuh_sniper/dist/IUH_Ledger_Portable.zip`).
+2. Giải nén toàn bộ thư mục `IUH_Ledger` ra máy tính (lưu ý giữ nguyên thư mục `_internal` đi kèm bên cạnh `IUH_Ledger.exe`).
+3. Click đúp vào **`IUH_Ledger.exe`** để sử dụng ngay lập tức! Gói đã tích hợp sẵn `python314.dll`, `Python.Runtime.dll`, `ClrLoader.dll`, `WebView2Loader.dll` và bộ thư viện Visual C++ / UCRT Runtime.
+
+### Cách 2: Tự đóng gói từ Mã nguồn (1-Click Build)
+Dự án cung cấp sẵn kịch bản đóng gói tự động tạo cả thư mục chạy và file nén `.zip`:
 
 ```bash
-# Chạy file batch đóng gói
 build_exe.bat
 ```
 
-Sau khi đóng gói hoàn tất:
-- File thực thi độc lập sẽ nằm tại: `iuh_sniper\dist\IUH_Ledger\IUH_Ledger.exe`
-- Ứng dụng đã được nhúng sẵn Runtime, thư viện DLLs, biểu tượng vector icon và giao diện web cục bộ. Người dùng chỉ cần sao chép cả thư mục `IUH_Ledger` sang máy tính khác là có thể chạy ngay mà không cần cài đặt Python.
-
+Sau khi chạy xong:
+- Thư mục chạy trực tiếp: `iuh_sniper\dist\IUH_Ledger\IUH_Ledger.exe`
+- Gói ZIP phân phối hoàn chỉnh (18.7 MB): `iuh_sniper\dist\IUH_Ledger_Portable.zip`
 ---
 
 ## 🧪 Kiểm Thử Tự Động (Test Suite)
