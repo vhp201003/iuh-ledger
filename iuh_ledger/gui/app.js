@@ -1,6 +1,6 @@
 /* IUH Ledger GUI Controller (pywebview Bridge + Browser Fallback) */
 
-let currentSemesterId = "62";
+let currentSemesterId = "64";
 let currentLoaiDk = 1;
 let currentNoConflict = false;
 let radarActive = false;
@@ -98,6 +98,7 @@ function setLedgerState(stateName, errorMsg) {
 
 async function onSemesterChange(idDot) {
   currentSemesterId = String(idDot);
+  currentScheduleWeekDate = "";
   clearSubjectCache();
   updateHeaderMeta();
   showInlineBanner("");
@@ -1141,7 +1142,7 @@ let previewSandboxTargets = []; // Multi-subject preview sandbox (replaces same 
 let _returnContext = null; // Stores { maMon, scrollTop } when jumping from Open Subjects to Timetable
 let currentScheduleWeekDate = ""; // pNgayHienTai for GetDanhSachLichTheoTuan ("" = default/semester overview)
 let lastScheduleWeekMeta = { prev_week: "26/10/2026", current_week: "02/11/2026", next_week: "09/11/2026" };
-
+let _scheduleLoadSeq = 0; // Prevents concurrent loadWeeklySchedule calls from duplicating cards
 function setScheduleMode(mode) {
   currentScheduleMode = mode;
   const btnOfficial = document.getElementById("btn-sched-mode-official");
@@ -1351,15 +1352,9 @@ function renderSandboxTray(previewClasses, slots) {
 }
 
 async function loadWeeklySchedule() {
+  const mySeq = ++_scheduleLoadSeq;
   const days = ["2", "3", "4", "5", "6", "7", "CN"];
   const cas = ["sang", "chieu", "toi"];
-  cas.forEach(c => {
-    days.forEach(d => {
-      const cell = document.getElementById(`sched-slot-${c}-${d}`);
-      if (cell) cell.innerHTML = "";
-    });
-  });
-
   let previewClasses = [];
   if (currentScheduleMode === "preview") {
     if (sniperTargets && sniperTargets.length > 0) {
@@ -1393,6 +1388,7 @@ async function loadWeeklySchedule() {
       console.error("Lỗi khi tải thời khóa biểu:", e);
     }
   }
+  if (mySeq !== _scheduleLoadSeq) return; // Discard stale concurrent response
 
   // If no bridge (browser offline preview), use exact parsed data from captured GetDanhSachLichTheoTuan (02/11/2026 - 08/11/2026)
   if (!scheduleData) {
@@ -1449,6 +1445,13 @@ async function loadWeeklySchedule() {
     if (chipEl) {
       chipEl.textContent = dayDates[d] || "";
     }
+  });
+  // Clear all grid cells immediately before appending so concurrent calls can NEVER stack duplicate cards
+  cas.forEach(c => {
+    days.forEach(d => {
+      const cell = document.getElementById(`sched-slot-${c}-${d}`);
+      if (cell) cell.innerHTML = "";
+    });
   });
 
   const slots = (scheduleData.slots || []).slice().sort((a, b) => (a.tiet_start || 0) - (b.tiet_start || 0));

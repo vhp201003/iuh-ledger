@@ -303,7 +303,7 @@ class IUHHTMLParser:
 
                     style_m = re.search(r'style=["\']([^"\']*)["\']', card_tag, re.I)
                     style_str = (style_m.group(1) if style_m else "").lower()
-                    if "lichthi" in card_cls:
+                    if "lichthi" in card_cls or "color-lichhoc" not in card_cls:
                         loai = "lich_thi"
                     elif "tamngung" in card_cls:
                         loai = "tam_ngung"
@@ -313,7 +313,6 @@ class IUHHTMLParser:
                         loai = "truc_tuyen"
                     else:
                         loai = "ly_thuyet"
-
                     title_m = re.search(r'<b>\s*<a[^>]*>(.*?)</a>\s*</b>', card_body, re.DOTALL | re.I)
                     ten_mon = _clean_text(title_m.group(1)) if title_m else "Học phần"
 

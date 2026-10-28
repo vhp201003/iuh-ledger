@@ -365,6 +365,7 @@ class TestIUHSniperE2E(unittest.TestCase):
                 def get_class_schedule(self, guid, timeout=10):
                     return []
             bridge.catalog = EmptyNetworkCatalog()
+            bridge._reg_sched_cache.clear()
             demo_preview = {
                 "id_dot": "62",
                 "guid_lhp": "CqLpKkViKTvbXLsCooUfPg",

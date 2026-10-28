@@ -170,7 +170,7 @@ class BridgeAPI:
         self.radar = RadarService(self.client, id_dot=self.config.get("id_dot_dang_ky", "62"))
         self.sniper = SniperService(self.catalog, self.registration, self.config.get("target_classes", []))
         self._login_token: Optional[str] = None
-
+        self._reg_sched_cache: Dict[str, tuple] = {}
     def _load_config(self) -> Dict[str, Any]:
         candidates = [
             os.path.join(os.path.dirname(sys.executable), self.config_path) if getattr(sys, 'frozen', False) else None,
@@ -617,6 +617,35 @@ class BridgeAPI:
         self._save_config()
         return {"success": True, "message": "Cấu hình đã được lưu thành công.", "settings": self.get_settings()["settings"]}
 
+    @staticmethod
+    def _compute_week_dates(anchor_date_str: str = "") -> Dict[str, Any]:
+        from datetime import datetime, timedelta
+        if anchor_date_str:
+            try:
+                dt = datetime.strptime(str(anchor_date_str).strip(), "%d/%m/%Y")
+            except Exception:
+                dt = datetime.now()
+        else:
+            dt = datetime.now()
+        dt = dt.replace(hour=0, minute=0, second=0, microsecond=0)
+        monday = dt - timedelta(days=dt.weekday())
+        prev_monday = monday - timedelta(days=7)
+        next_monday = monday + timedelta(days=7)
+        day_codes = ["2", "3", "4", "5", "6", "7", "CN"]
+        day_dates = {}
+        day_dt_map = {}
+        for idx, code in enumerate(day_codes):
+            d_obj = monday + timedelta(days=idx)
+            day_dates[code] = d_obj.strftime("%d/%m/%Y")
+            day_dt_map[code] = d_obj
+        return {
+            "prev_week": prev_monday.strftime("%d/%m/%Y"),
+            "current_week": monday.strftime("%d/%m/%Y"),
+            "next_week": next_monday.strftime("%d/%m/%Y"),
+            "day_dates": day_dates,
+            "day_dt_map": day_dt_map
+        }
+
     def get_weekly_schedule(
         self,
         id_dot: str = "62",
@@ -625,83 +654,133 @@ class BridgeAPI:
         loai_lich: int = 0
     ) -> Dict[str, Any]:
         """
-        Builds weekly timetable matrix from:
-        1. Live POST /SinhVien/GetDanhSachLichTheoTuan (if weekly timetable has slots or ngay_hien_tai is requested)
-        2. Live POST /SinhVienDangKy/HocPhanDaDangKy + GetChiTietLichHoc for the selected semester (id_dot)
-        3. Captured GetDanhSachLichTheoTuan response file when offline
-        4. Optional preview target classes (from Schedule Sandbox or Watchdog queue).
+        Builds weekly timetable matrix:
+        1. Computes the target week dates (or adjusts to the semester's active week when switching semesters).
+        2. Fetches registered courses and their detailed schedules (cached in memory to prevent 429 rate-limits)
+           and filters every schedule row strictly by `start_date <= column_date <= end_date` so one-off makeup
+           or past/future phase rows NEVER stack on the same week!
+        3. If the semester has 0 registered courses or is in current week, supplements from GetDanhSachLichTheoTuan
+           (including Lịch thi / exam cards).
+        4. Offline fallback: parses captured GetDanhSachLichTheoTuan HTML response.
         """
         raw_slots: List[Dict[str, Any]] = []
         has_live_session = False
         registered_count = 0
-        week_meta: Dict[str, Any] = {
-            "prev_week": "",
-            "current_week": ngay_hien_tai or "",
-            "next_week": "",
-            "day_dates": {}
-        }
+        week_info = self._compute_week_dates(ngay_hien_tai)
 
-        # 1. Query semester registered courses first
+        # 1. Fetch semester registered courses & their schedules (with in-memory caching to avoid 429)
         try:
-            reg_res = self.catalog.get_registered_courses(id_dot=str(id_dot))
-            if reg_res is not None:
-                if len(reg_res) > 0 or self.client.is_session_valid():
-                    has_live_session = True
+            cache_key = str(id_dot)
+            cached_entry = self._reg_sched_cache.get(cache_key)
+            now_ts = time.time()
+            if cached_entry and (now_ts - cached_entry[0] < 120):
+                reg_res, scheds_by_guid = cached_entry[1], cached_entry[2]
+                has_live_session = True
                 registered_count = len(reg_res)
+            else:
+                reg_res = self.catalog.get_registered_courses(id_dot=str(id_dot))
+                scheds_by_guid: Dict[str, List[Any]] = {}
+                if reg_res is not None:
+                    if len(reg_res) > 0 or self.client.is_session_valid():
+                        has_live_session = True
+                    registered_count = len(reg_res)
 
-            def _fetch_reg_sched(c_item):
-                g_lhp = getattr(c_item, "guid_lhp", "") or getattr(c_item, "guid", "")
-                if not g_lhp:
-                    return c_item, []
-                try:
-                    return c_item, self.catalog.get_class_schedule(g_lhp, timeout=10)
-                except Exception:
-                    return c_item, []
+                def _fetch_reg_sched(c_item):
+                    g_lhp = getattr(c_item, "guid_lhp", "") or getattr(c_item, "guid", "")
+                    if not g_lhp:
+                        return g_lhp, []
+                    try:
+                        return g_lhp, self.catalog.get_class_schedule(g_lhp, timeout=10)
+                    except Exception:
+                        return g_lhp, []
 
-            if reg_res and not ngay_hien_tai:
-                with ThreadPoolExecutor(max_workers=4) as pool:
-                    for c_item, scheds in pool.map(_fetch_reg_sched, reg_res):
-                        c_nhom = extract_nhom_th_int(getattr(c_item, "nhom_th", None))
+                if reg_res:
+                    with ThreadPoolExecutor(max_workers=4) as pool:
+                        for g_lhp, scheds in pool.map(_fetch_reg_sched, reg_res):
+                            if g_lhp:
+                                scheds_by_guid[g_lhp] = scheds
+                    if scheds_by_guid:
+                        self._reg_sched_cache[cache_key] = (now_ts, reg_res, scheds_by_guid)
+
+            if reg_res:
+                # If user hasn't manually picked a week date, check if current week falls outside the semester's date range
+                if not ngay_hien_tai:
+                    all_start_dates = []
+                    for g_lhp, scheds in scheds_by_guid.items():
                         for s in scheds:
-                            s_nhom = extract_nhom_th_int(getattr(s, "nhom_th", None))
-                            if s_nhom is not None and c_nhom is not None and s_nhom != c_nhom:
+                            st_d, en_d = self._parse_date_range(getattr(s, "thoi_gian", ""))
+                            if st_d and en_d:
+                                all_start_dates.append((st_d, en_d))
+                    if all_start_dates:
+                        sem_min = min(x[0] for x in all_start_dates)
+                        sem_max = max(x[1] for x in all_start_dates)
+                        curr_mon = week_info["day_dt_map"]["2"]
+                        curr_sun = week_info["day_dt_map"]["CN"]
+                        if curr_sun < sem_min or curr_mon > sem_max:
+                            # Jump to the first active week of that semester so the user sees its real weekly schedule
+                            week_info = self._compute_week_dates(sem_min.strftime("%d/%m/%Y"))
+
+                for c_item in reg_res:
+                    g_lhp = getattr(c_item, "guid_lhp", "") or getattr(c_item, "guid", "")
+                    scheds = scheds_by_guid.get(g_lhp, [])
+                    c_nhom = extract_nhom_th_int(getattr(c_item, "nhom_th", None))
+                    for s in scheds:
+                        s_nhom = extract_nhom_th_int(getattr(s, "nhom_th", None))
+                        if s_nhom is not None and c_nhom is not None and s_nhom != c_nhom:
+                            continue
+                        parsed = self._parse_schedule_slot(
+                            s,
+                            c_item.ten_mon,
+                            c_item.ma_lhp,
+                            c_item.lop_du_kien,
+                            is_preview=False,
+                            selected_nhom=c_nhom
+                        )
+                        if not parsed:
+                            continue
+                        # Strict week-date filter: only include rows active on that weekday's exact date!
+                        d_code = parsed.get("day", "")
+                        col_dt = week_info["day_dt_map"].get(d_code)
+                        st_dt, en_dt = self._parse_date_range(parsed.get("thoi_gian", ""))
+                        if col_dt and st_dt and en_dt:
+                            if not (st_dt <= col_dt <= en_dt):
                                 continue
-                            parsed = self._parse_schedule_slot(
-                                s,
-                                c_item.ten_mon,
-                                c_item.ma_lhp,
-                                c_item.lop_du_kien,
-                                is_preview=False,
-                                selected_nhom=c_nhom
-                            )
-                            if parsed:
-                                raw_slots.append(parsed)
+                        raw_slots.append(parsed)
         except Exception:
             pass
 
-        # 2. Query POST /SinhVien/GetDanhSachLichTheoTuan when ngay_hien_tai is specified or when semester has 0 registered slots
-        if not raw_slots or ngay_hien_tai:
-            try:
-                if hasattr(self.catalog, "get_weekly_timetable"):
-                    tt_res = self.catalog.get_weekly_timetable(ngay_hien_tai=ngay_hien_tai, loai_lich=loai_lich)
-                    if tt_res and tt_res.get("slots"):
-                        raw_slots = list(tt_res["slots"])
+        # 2. Supplement or populate from POST /SinhVien/GetDanhSachLichTheoTuan (includes exam cards like Lịch thi)
+        try:
+            if hasattr(self.catalog, "get_weekly_timetable") and (not raw_slots or week_info["current_week"] == self._compute_week_dates("")["current_week"]):
+                tt_res = self.catalog.get_weekly_timetable(ngay_hien_tai=week_info["current_week"], loai_lich=loai_lich)
+                if tt_res:
+                    for k in ("prev_week", "current_week", "next_week", "day_dates"):
+                        if tt_res.get(k):
+                            week_info[k] = tt_res[k]
+                    if tt_res.get("slots"):
                         has_live_session = True
-                    if tt_res:
-                        for k in ("prev_week", "current_week", "next_week", "day_dates"):
-                            if tt_res.get(k):
-                                week_meta[k] = tt_res[k]
-            except Exception:
-                pass
+                        if not raw_slots:
+                            raw_slots = list(tt_res["slots"])
+                            if not registered_count:
+                                registered_count = len({s.get("ma_lhp") or s.get("ten_mon") for s in raw_slots})
+                        else:
+                            # Merge any exam slots (lich_thi) from GetDanhSachLichTheoTuan not present in GetChiTietLichHoc
+                            for ts in tt_res["slots"]:
+                                if ts.get("loai") == "lich_thi":
+                                    raw_slots.append(ts)
+        except Exception:
+            pass
 
-        # 3. Offline fallback: parse directly from captured GetDanhSachLichTheoTuan HTML response (zero hardcoding!)
-        if not raw_slots:
+        # 3. Offline fallback: parse directly from captured GetDanhSachLichTheoTuan HTML response (when not authenticated)
+        if not raw_slots and not has_live_session:
             cap_tt = self._load_captured_weekly_timetable()
             if cap_tt:
                 raw_slots = list(cap_tt.get("slots", []))
                 for k in ("prev_week", "current_week", "next_week", "day_dates"):
-                    if cap_tt.get(k) and not week_meta.get(k):
-                        week_meta[k] = cap_tt[k]
+                    if cap_tt.get(k):
+                        week_info[k] = cap_tt[k]
+                if not registered_count:
+                    registered_count = len({s.get("ma_lhp") or s.get("ten_mon") for s in raw_slots})
 
         # 4. Append preview classes if provided (from Schedule Sandbox or Watchdog queue)
         if preview_classes:
@@ -716,21 +795,29 @@ class BridgeAPI:
                 p_nhom = extract_nhom_th_int(p.get("nhom_th"))
                 p_scheds: List[Any] = []
 
-                # 4a. Prefer pre-fetched embedded schedules if present (Zero network latency & works offline)
                 embedded_scheds = p.get("schedules")
                 if isinstance(embedded_scheds, list) and len(embedded_scheds) > 0:
                     p_scheds = [SimpleNamespace(**s) if isinstance(s, dict) else s for s in embedded_scheds]
 
-                # 4b. Otherwise query live endpoint by guid_lhp
                 if not p_scheds and guid:
                     try:
                         p_scheds = self.catalog.get_class_schedule(guid, timeout=10)
                     except Exception:
                         p_scheds = []
 
-                # 4c. Last resort: synthesize schedule objects from lich_lt / lich_th summary strings
                 if not p_scheds:
                     p_scheds = self._synthesize_schedules_from_strings(p)
+
+                # Check if any preview row has dates overlapping the displayed week
+                week_mon = week_info["day_dt_map"].get("2")
+                week_sun = week_info["day_dt_map"].get("CN")
+                has_overlapping_preview_dates = False
+                if week_mon and week_sun:
+                    for ps in p_scheds:
+                        st_d, en_d = self._parse_date_range(getattr(ps, "thoi_gian", ""))
+                        if st_d and en_d and max(st_d, week_mon) <= min(en_d, week_sun):
+                            has_overlapping_preview_dates = True
+                            break
 
                 for ps in p_scheds:
                     s_nhom = extract_nhom_th_int(getattr(ps, "nhom_th", None))
@@ -744,9 +831,15 @@ class BridgeAPI:
                         is_preview=True,
                         selected_nhom=p_nhom
                     )
-                    if parsed:
-                        parsed["target_key"] = p.get("target_key") or f"{guid}_{p_nhom if p_nhom is not None else 0}"
-                        raw_slots.append(parsed)
+                    if not parsed:
+                        continue
+                    if has_overlapping_preview_dates:
+                        col_dt = week_info["day_dt_map"].get(parsed.get("day", ""))
+                        st_d, en_d = self._parse_date_range(parsed.get("thoi_gian", ""))
+                        if col_dt and st_d and en_d and not (st_d <= col_dt <= en_d):
+                            continue
+                    parsed["target_key"] = p.get("target_key") or f"{guid}_{p_nhom if p_nhom is not None else 0}"
+                    raw_slots.append(parsed)
 
         slots = self._dedupe_and_detect_conflicts(raw_slots)
         conflict_count = sum(1 for sl in slots if sl.get("has_conflict"))
@@ -757,10 +850,10 @@ class BridgeAPI:
             "has_live_session": has_live_session,
             "registered_count": registered_count,
             "conflict_count": conflict_count,
-            "prev_week": week_meta.get("prev_week", ""),
-            "current_week": week_meta.get("current_week", ""),
-            "next_week": week_meta.get("next_week", ""),
-            "day_dates": week_meta.get("day_dates", {}),
+            "prev_week": week_info.get("prev_week", ""),
+            "current_week": week_info.get("current_week", ""),
+            "next_week": week_info.get("next_week", ""),
+            "day_dates": week_info.get("day_dates", {}),
             "slots": slots
         }
     @staticmethod
