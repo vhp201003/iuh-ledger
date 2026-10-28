@@ -1139,6 +1139,8 @@ function escapeAttr(str) {
 let currentScheduleMode = "preview"; // "preview" (Official + Watchdog/Preview) or "official"
 let previewSandboxTargets = []; // Multi-subject preview sandbox (replaces same ma_mon, accumulates distinct ma_mon)
 let _returnContext = null; // Stores { maMon, scrollTop } when jumping from Open Subjects to Timetable
+let currentScheduleWeekDate = ""; // pNgayHienTai for GetDanhSachLichTheoTuan ("" = default/semester overview)
+let lastScheduleWeekMeta = { prev_week: "26/10/2026", current_week: "02/11/2026", next_week: "09/11/2026" };
 
 function setScheduleMode(mode) {
   currentScheduleMode = mode;
@@ -1146,6 +1148,17 @@ function setScheduleMode(mode) {
   const btnPreview = document.getElementById("btn-sched-mode-preview");
   if (btnOfficial) btnOfficial.classList.toggle("active", mode === "official");
   if (btnPreview) btnPreview.classList.toggle("active", mode === "preview");
+  loadWeeklySchedule();
+}
+
+function navigateScheduleWeek(direction) {
+  if (direction === "prev") {
+    currentScheduleWeekDate = lastScheduleWeekMeta.prev_week || "";
+  } else if (direction === "next") {
+    currentScheduleWeekDate = lastScheduleWeekMeta.next_week || "";
+  } else {
+    currentScheduleWeekDate = "";
+  }
   loadWeeklySchedule();
 }
 
@@ -1369,7 +1382,9 @@ async function loadWeeklySchedule() {
     try {
       const res = await window.pywebview.api.get_weekly_schedule(
         currentSemesterId,
-        previewClasses.length > 0 ? previewClasses : null
+        previewClasses.length > 0 ? previewClasses : null,
+        currentScheduleWeekDate,
+        0
       );
       if (res && res.success) {
         scheduleData = res;
@@ -1379,25 +1394,20 @@ async function loadWeeklySchedule() {
     }
   }
 
-  // If no bridge (browser offline preview), build realistic schedule from sample registered + preview classes
+  // If no bridge (browser offline preview), use exact parsed data from captured GetDanhSachLichTheoTuan (02/11/2026 - 08/11/2026)
   if (!scheduleData) {
     const sampleSlots = [
-      { day: "2", ca: "sang", ten_mon: "Nghiên cứu và phân tích dữ liệu thị trường", ten_lop: "DHTMDT20B_TCTA - 429701766002", tiet: "4 - 6", tiet_start: 4, tiet_end: 6, phong: "N2.2 CLC (CS Nguyễn Văn Dung)", giang_vien: "GS MINCONG TANG, ThS Đỗ Bùi Xuân Cường", thoi_gian: "05/01/2026 - 20/04/2026", loai: "ly_thuyet", is_preview: false },
-      { day: "3", ca: "sang", ten_mon: "Nguyên lý lập trình Web", ten_lop: "DHTMDT20B_TCTA - 429701766102", tiet: "1 - 3", tiet_start: 1, tiet_end: 3, phong: "N4.6 CLC (CS Nguyễn Văn Dung)", giang_vien: "ThS Nguyễn Đức Cương", thoi_gian: "13/01/2026 - 07/04/2026", loai: "ly_thuyet", is_preview: false },
-      { day: "3", ca: "chieu", ten_mon: "Cơ sở dữ liệu", ten_lop: "DHTMDT20B_TCTA - 429701765902", tiet: "7 - 9", tiet_start: 7, tiet_end: 9, phong: "N4.6 CLC (CS Nguyễn Văn Dung)", giang_vien: "TS Phan Trần Minh Khuê", thoi_gian: "13/01/2026 - 07/04/2026", loai: "ly_thuyet", is_preview: false },
-      { day: "4", ca: "sang", ten_mon: "Cơ sở dữ liệu", ten_lop: "DHTMDT20B_TCTA - 429701765902", tiet: "4 - 6", tiet_start: 4, tiet_end: 6, phong: "H7.02 (CS1)", giang_vien: "DH Lìu Cẩm Bình", ghi_chu: "Nhóm TH 1", thoi_gian: "14/01/2026 - 08/04/2026", loai: "thuc_hanh", is_preview: false },
-      { day: "5", ca: "toi", ten_mon: "Hệ thống thông tin quản lý", ten_lop: "DHTMDT20A_TCTA - 429701760701", tiet: "13 - 15", tiet_start: 13, tiet_end: 15, phong: "N1.5 CLC (CS Nguyễn Văn Dung)", giang_vien: "ThS Trần Khánh", ghi_chu: "Nhóm TH 1", thoi_gian: "15/01/2026 - 16/04/2026", loai: "thuc_hanh", is_preview: false },
-      { day: "6", ca: "chieu", ten_mon: "Nguyên lý kế toán", ten_lop: "DHTMDT20B_TCTA - 429700153403", tiet: "7 - 9", tiet_start: 7, tiet_end: 9, phong: "N4.6 CLC (CS Nguyễn Văn Dung)", giang_vien: "TS Đỗ Thị Thu Thảo", thoi_gian: "09/01/2026 - 08/05/2026", loai: "ly_thuyet", is_preview: false },
-      { day: "6", ca: "chieu", ten_mon: "Kinh tế lượng", ten_lop: "DHTMDT20B_TCTA - 429700402909", tiet: "10 - 12", tiet_start: 10, tiet_end: 12, phong: "N4.6 CLC (CS Nguyễn Văn Dung)", giang_vien: "ThS Nguyễn Thị Ngọc Hoa", thoi_gian: "09/01/2026 - 24/04/2026", loai: "ly_thuyet", is_preview: false },
-      { day: "6", ca: "toi", ten_mon: "Hệ thống thông tin quản lý", ten_lop: "DHTMDT20A_TCTA - 429701760701", tiet: "13 - 15", tiet_start: 13, tiet_end: 15, phong: "N1.3 CLC (CS Nguyễn Văn Dung)", giang_vien: "ThS Trần Khánh", thoi_gian: "09/01/2026 - 10/04/2026", loai: "ly_thuyet", is_preview: false },
-      { day: "7", ca: "toi", ten_mon: "Nguyên lý lập trình Web", ten_lop: "DHTMDT20B_TCTA - 429701766102", tiet: "13 - 15", tiet_start: 13, tiet_end: 15, phong: "H7.01 (CS1)", giang_vien: "DH Lìu Cẩm Bình", ghi_chu: "Nhóm TH 1", thoi_gian: "17/01/2026 - 11/04/2026", loai: "thuc_hanh", is_preview: false }
+      { day: "2", ca: "sang", ten_mon: "Triết học Mác - Lênin", ma_lhp: "429701380102", ten_lop: "DHTMDT20B_TCTA - 429701380102", tiet: "4 - 6", tiet_start: 4, tiet_end: 6, phong: "N4.4 (N - Cơ sở Nguyễn Văn Dung)", giang_vien: "Nguyễn Thị Kim Chung", thoi_gian: "02/11/2026", loai: "ly_thuyet", is_preview: false },
+      { day: "2", ca: "chieu", ten_mon: "Phân tích thiết kế hệ thống thương mại điện tử", ma_lhp: "429701766502", ten_lop: "DHTMDT20B_TCTA - 429701766502", tiet: "7 - 9", tiet_start: 7, tiet_end: 9, phong: "H4.2.1 (H (CS1) - Cơ sở 1)", giang_vien: "Lê Thị Ánh Tuyết", thoi_gian: "02/11/2026", loai: "thuc_hanh", is_preview: false },
+      { day: "4", ca: "sang", ten_mon: "Quản trị tác nghiệp Thương mại điện tử", ma_lhp: "429701766202", ten_lop: "DHTMDT20B_TCTA - 429701766202", tiet: "1 - 3", tiet_start: 1, tiet_end: 3, phong: "N4.4 (N - Cơ sở Nguyễn Văn Dung)", giang_vien: "Võ Thị Minh Nhựt", thoi_gian: "04/11/2026", loai: "ly_thuyet", is_preview: false },
+      { day: "6", ca: "chieu", ten_mon: "Tài chính doanh nghiệp", ma_lhp: "429700380206", ten_lop: "DHKT21D_TCTA - 429700380206", tiet: "7 - 9", tiet_start: 7, tiet_end: 9, phong: "N10.3 (N - Cơ sở Nguyễn Văn Dung)", giang_vien: "Lại Cao Mai Phương", thoi_gian: "06/11/2026", loai: "ly_thuyet", is_preview: false },
+      { day: "7", ca: "sang", ten_mon: "Phân tích thiết kế hệ thống thương mại điện tử", ma_lhp: "429701766502", ten_lop: "DHTMDT20B_TCTA - 429701766502", tiet: "1 - 3", tiet_start: 1, tiet_end: 3, phong: "H3.1.1 (H (CS1) - Cơ sở 1)", giang_vien: "Lê Thị Ánh Tuyết", thoi_gian: "07/11/2026", loai: "thuc_hanh", is_preview: false }
     ];
     if (previewClasses.length > 0) {
       previewClasses.forEach(p => {
         const parsedPreview = parseStringScheduleSlotsForBrowser(p);
         parsedPreview.forEach(ps => sampleSlots.push(ps));
       });
-      // Detect overlaps in browser fallback mode
       for (let i = 0; i < sampleSlots.length; i++) {
         const s1 = sampleSlots[i];
         s1.has_conflict = false;
@@ -1415,11 +1425,31 @@ async function loadWeeklySchedule() {
     }
     scheduleData = {
       success: true,
-      registered_count: 6,
+      registered_count: 5,
       conflict_count: sampleSlots.filter(s => s.has_conflict).length,
+      prev_week: "26/10/2026",
+      current_week: "02/11/2026",
+      next_week: "09/11/2026",
+      day_dates: { "2": "02/11/2026", "3": "03/11/2026", "4": "04/11/2026", "5": "05/11/2026", "6": "06/11/2026", "7": "07/11/2026", "CN": "08/11/2026" },
       slots: sampleSlots
     };
   }
+
+  if (scheduleData.prev_week || scheduleData.current_week || scheduleData.next_week) {
+    lastScheduleWeekMeta = {
+      prev_week: scheduleData.prev_week || lastScheduleWeekMeta.prev_week,
+      current_week: scheduleData.current_week || lastScheduleWeekMeta.current_week,
+      next_week: scheduleData.next_week || lastScheduleWeekMeta.next_week
+    };
+  }
+
+  const dayDates = scheduleData.day_dates || {};
+  days.forEach(d => {
+    const chipEl = document.getElementById(`sched-date-${d}`);
+    if (chipEl) {
+      chipEl.textContent = dayDates[d] || "";
+    }
+  });
 
   const slots = (scheduleData.slots || []).slice().sort((a, b) => (a.tiet_start || 0) - (b.tiet_start || 0));
   let totalSlots = 0;
@@ -1427,7 +1457,6 @@ async function loadWeeklySchedule() {
   let conflictCount = 0;
 
   renderSandboxTray(previewClasses, slots);
-
   slots.forEach(slot => {
     const d = slot.day;
     const c = slot.ca;

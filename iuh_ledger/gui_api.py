@@ -617,19 +617,34 @@ class BridgeAPI:
         self._save_config()
         return {"success": True, "message": "Cấu hình đã được lưu thành công.", "settings": self.get_settings()["settings"]}
 
-    def get_weekly_schedule(self, id_dot: str = "62", preview_classes: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+    def get_weekly_schedule(
+        self,
+        id_dot: str = "62",
+        preview_classes: Optional[List[Dict[str, Any]]] = None,
+        ngay_hien_tai: str = "",
+        loai_lich: int = 0
+    ) -> Dict[str, Any]:
         """
-        Builds weekly timetable matrix from actual registered courses in the semester,
-        plus optional preview target classes (e.g. from Watchdog queue or interactive class preview).
+        Builds weekly timetable matrix from:
+        1. Live POST /SinhVien/GetDanhSachLichTheoTuan (if weekly timetable has slots or ngay_hien_tai is requested)
+        2. Live POST /SinhVienDangKy/HocPhanDaDangKy + GetChiTietLichHoc for the selected semester (id_dot)
+        3. Captured GetDanhSachLichTheoTuan response file when offline
+        4. Optional preview target classes (from Schedule Sandbox or Watchdog queue).
         """
         raw_slots: List[Dict[str, Any]] = []
         has_live_session = False
         registered_count = 0
+        week_meta: Dict[str, Any] = {
+            "prev_week": "",
+            "current_week": ngay_hien_tai or "",
+            "next_week": "",
+            "day_dates": {}
+        }
 
+        # 1. Query semester registered courses first
         try:
             reg_res = self.catalog.get_registered_courses(id_dot=str(id_dot))
             if reg_res is not None:
-                # Check if session actually returned courses or if client has valid session
                 if len(reg_res) > 0 or self.client.is_session_valid():
                     has_live_session = True
                 registered_count = len(reg_res)
@@ -643,7 +658,7 @@ class BridgeAPI:
                 except Exception:
                     return c_item, []
 
-            if reg_res:
+            if reg_res and not ngay_hien_tai:
                 with ThreadPoolExecutor(max_workers=4) as pool:
                     for c_item, scheds in pool.map(_fetch_reg_sched, reg_res):
                         c_nhom = extract_nhom_th_int(getattr(c_item, "nhom_th", None))
@@ -664,12 +679,31 @@ class BridgeAPI:
         except Exception:
             pass
 
-        # Fallback to authentic schedule template when no registered courses exist in this semester
-        # (so preview classes can be visually compared against a populated baseline timetable)
-        if not raw_slots and (not has_live_session or preview_classes):
-            raw_slots = list(self._get_default_authentic_schedule())
+        # 2. Query POST /SinhVien/GetDanhSachLichTheoTuan when ngay_hien_tai is specified or when semester has 0 registered slots
+        if not raw_slots or ngay_hien_tai:
+            try:
+                if hasattr(self.catalog, "get_weekly_timetable"):
+                    tt_res = self.catalog.get_weekly_timetable(ngay_hien_tai=ngay_hien_tai, loai_lich=loai_lich)
+                    if tt_res and tt_res.get("slots"):
+                        raw_slots = list(tt_res["slots"])
+                        has_live_session = True
+                    if tt_res:
+                        for k in ("prev_week", "current_week", "next_week", "day_dates"):
+                            if tt_res.get(k):
+                                week_meta[k] = tt_res[k]
+            except Exception:
+                pass
 
-        # Append preview classes if provided (from Schedule Sandbox or Watchdog queue)
+        # 3. Offline fallback: parse directly from captured GetDanhSachLichTheoTuan HTML response (zero hardcoding!)
+        if not raw_slots:
+            cap_tt = self._load_captured_weekly_timetable()
+            if cap_tt:
+                raw_slots = list(cap_tt.get("slots", []))
+                for k in ("prev_week", "current_week", "next_week", "day_dates"):
+                    if cap_tt.get(k) and not week_meta.get(k):
+                        week_meta[k] = cap_tt[k]
+
+        # 4. Append preview classes if provided (from Schedule Sandbox or Watchdog queue)
         if preview_classes:
             for p in preview_classes:
                 p_dot = str(p.get("id_dot", id_dot))
@@ -682,19 +716,19 @@ class BridgeAPI:
                 p_nhom = extract_nhom_th_int(p.get("nhom_th"))
                 p_scheds: List[Any] = []
 
-                # 1. Prefer pre-fetched embedded schedules if present (Zero network latency & works offline)
+                # 4a. Prefer pre-fetched embedded schedules if present (Zero network latency & works offline)
                 embedded_scheds = p.get("schedules")
                 if isinstance(embedded_scheds, list) and len(embedded_scheds) > 0:
                     p_scheds = [SimpleNamespace(**s) if isinstance(s, dict) else s for s in embedded_scheds]
 
-                # 2. Otherwise query live endpoint by guid_lhp
+                # 4b. Otherwise query live endpoint by guid_lhp
                 if not p_scheds and guid:
                     try:
                         p_scheds = self.catalog.get_class_schedule(guid, timeout=10)
                     except Exception:
                         p_scheds = []
 
-                # 3. Last resort: synthesize schedule objects from lich_lt / lich_th summary strings
+                # 4c. Last resort: synthesize schedule objects from lich_lt / lich_th summary strings
                 if not p_scheds:
                     p_scheds = self._synthesize_schedules_from_strings(p)
 
@@ -713,6 +747,7 @@ class BridgeAPI:
                     if parsed:
                         parsed["target_key"] = p.get("target_key") or f"{guid}_{p_nhom if p_nhom is not None else 0}"
                         raw_slots.append(parsed)
+
         slots = self._dedupe_and_detect_conflicts(raw_slots)
         conflict_count = sum(1 for sl in slots if sl.get("has_conflict"))
 
@@ -722,9 +757,12 @@ class BridgeAPI:
             "has_live_session": has_live_session,
             "registered_count": registered_count,
             "conflict_count": conflict_count,
+            "prev_week": week_meta.get("prev_week", ""),
+            "current_week": week_meta.get("current_week", ""),
+            "next_week": week_meta.get("next_week", ""),
+            "day_dates": week_meta.get("day_dates", {}),
             "slots": slots
         }
-
     @staticmethod
     def _synthesize_schedules_from_strings(p: Dict[str, Any]) -> List[Any]:
         """
@@ -934,118 +972,27 @@ class BridgeAPI:
             "loai": loai,
             "is_preview": is_preview
         }
-    def _get_default_authentic_schedule(self) -> List[Dict[str, Any]]:
-        return [
-            {
-                "day": "2",
-                "ca": "sang",
-                "ten_mon": "Triết học Mác - Lênin",
-                "ma_lhp": "429701380102",
-                "ten_lop": "DHTMDT20B_TCTA - 429701380102",
-                "tiet": "4 - 6",
-                "tiet_start": 4,
-                "tiet_end": 6,
-                "phong": "N4.4 (N - Cơ sở Nguyễn Văn Dung)",
-                "giang_vien": "Nguyễn Thị Kim Chung",
-                "thoi_gian": "05/01/2026 - 20/04/2026",
-                "ghi_chu": "",
-                "loai": "ly_thuyet",
-                "is_preview": False
-            },
-            {
-                "day": "2",
-                "ca": "toi",
-                "ten_mon": "Triết học Mác - Lênin",
-                "ma_lhp": "429701380102",
-                "ten_lop": "DHTMDT20B_TCTA - 429701380102",
-                "tiet": "13 - 15",
-                "tiet_start": 13,
-                "tiet_end": 15,
-                "phong": "Trực tuyến (Cơ sở 1)",
-                "giang_vien": "Nguyễn Thị Kim Chung",
-                "thoi_gian": "05/01/2026 - 20/04/2026",
-                "ghi_chu": "Teams: fbj2dsr",
-                "loai": "truc_tuyen",
-                "is_preview": False
-            },
-            {
-                "day": "3",
-                "ca": "chieu",
-                "ten_mon": "Cơ sở dữ liệu",
-                "ma_lhp": "429701765902",
-                "ten_lop": "DHTMDT20B_TCTA - 429701765902",
-                "tiet": "7 - 9",
-                "tiet_start": 7,
-                "tiet_end": 9,
-                "phong": "N4.6 CLC (CS Nguyễn Văn Dung)",
-                "giang_vien": "TS Phan Trần Minh Khuê",
-                "thoi_gian": "13/01/2026 - 07/04/2026",
-                "ghi_chu": "",
-                "loai": "ly_thuyet",
-                "is_preview": False
-            },
-            {
-                "day": "4",
-                "ca": "sang",
-                "ten_mon": "Cơ sở dữ liệu",
-                "ma_lhp": "429701765902",
-                "ten_lop": "DHTMDT20B_TCTA - 429701765902",
-                "tiet": "4 - 6",
-                "tiet_start": 4,
-                "tiet_end": 6,
-                "phong": "H7.02 (H (CS1) - Cơ sở 1)",
-                "giang_vien": "DH Lìu Cẩm Bình",
-                "thoi_gian": "14/01/2026 - 08/04/2026",
-                "ghi_chu": "Nhóm TH 1",
-                "loai": "thuc_hanh",
-                "is_preview": False
-            },
-            {
-                "day": "6",
-                "ca": "chieu",
-                "ten_mon": "Nguyên lý kế toán",
-                "ma_lhp": "429700153403",
-                "ten_lop": "DHTMDT20B_TCTA - 429700153403",
-                "tiet": "7 - 9",
-                "tiet_start": 7,
-                "tiet_end": 9,
-                "phong": "N4.6 CLC (CS Nguyễn Văn Dung)",
-                "giang_vien": "TS Đỗ Thị Thu Thảo",
-                "thoi_gian": "09/01/2026 - 08/05/2026",
-                "ghi_chu": "",
-                "loai": "ly_thuyet",
-                "is_preview": False
-            },
-            {
-                "day": "7",
-                "ca": "sang",
-                "ten_mon": "Phân tích thiết kế hệ thống thương mại điện tử",
-                "ma_lhp": "429701766502",
-                "ten_lop": "DHTMDT20B_TCTA - 429701766502",
-                "tiet": "1 - 3",
-                "tiet_start": 1,
-                "tiet_end": 3,
-                "phong": "H3.1.1 (H (CS1) - Cơ sở 1)",
-                "giang_vien": "Lê Thị Ánh Tuyết",
-                "thoi_gian": "17/01/2026 - 11/04/2026",
-                "ghi_chu": "Nhóm TH 1",
-                "loai": "thuc_hanh",
-                "is_preview": False
-            },
-            {
-                "day": "7",
-                "ca": "chieu",
-                "ten_mon": "Anh văn 3",
-                "ma_lhp": "429701525716",
-                "ten_lop": "DH Điện tử 20C TCTA - 429701525716",
-                "tiet": "7 - 12",
-                "tiet_start": 7,
-                "tiet_end": 12,
-                "phong": "X10.01",
-                "giang_vien": "",
-                "thoi_gian": "10/05/2026 - 10/05/2026",
-                "ghi_chu": "Lịch thi kết thúc học phần",
-                "loai": "lich_thi",
-                "is_preview": False
-            }
+    @staticmethod
+    def _load_captured_weekly_timetable() -> Dict[str, Any]:
+        """
+        Loads and parses the authentic captured response from POST /SinhVien/GetDanhSachLichTheoTuan
+        stored in capture/004_GetDanhSachLichTheoTuan_POST.txt when running offline.
+        """
+        from iuh_ledger.core.parser import IUHHTMLParser
+        base_dir = getattr(sys, '_MEIPASS', os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        candidates = [
+            os.path.join(base_dir, "capture", "004_GetDanhSachLichTheoTuan_POST.txt"),
+            os.path.join("capture", "004_GetDanhSachLichTheoTuan_POST.txt"),
+            os.path.join("iuh-ledger", "capture", "004_GetDanhSachLichTheoTuan_POST.txt"),
+            os.path.join("iuh-dkhp-tool-master", "capture", "004_GetDanhSachLichTheoTuan_POST.txt")
         ]
+        for c_path in candidates:
+            if os.path.exists(c_path):
+                try:
+                    with open(c_path, "r", encoding="utf-8") as f:
+                        raw = f.read()
+                    resp_html = raw.split("# Response", 1)[1] if "# Response" in raw else raw
+                    return IUHHTMLParser.parse_weekly_timetable(resp_html)
+                except Exception:
+                    pass
+        return {"prev_week": "", "current_week": "", "next_week": "", "day_dates": {}, "slots": []}

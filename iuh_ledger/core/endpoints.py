@@ -17,3 +17,4 @@ class IUHEndpoints:
     DANG_KY_HP = "https://sv.iuh.edu.vn/dang-ky-hoc-phan.html"
     HOC_PHAN_DA_DK = "https://sv.iuh.edu.vn/SinhVienDangKy/HocPhanDaDangKy"
     HUY_DANG_KY_HP = "https://sv.iuh.edu.vn/SinhVienDangKy/HuyDangKyHocPhan"
+    LICH_THEO_TUAN = "https://sv.iuh.edu.vn/SinhVien/GetDanhSachLichTheoTuan"

@@ -1,0 +1,478 @@
+# ==============================================================================
+# Target : GetDanhSachLichTheoTuan
+# Timestamp: 2026-10-28T01:01:39.800Z
+# Method : POST
+# Status : 200 (Duration: 267ms)
+# URL : https://sv.iuh.edu.vn/SinhVien/GetDanhSachLichTheoTuan
+# ==============================================================================
+
+# cURL
+curl --url 'https://sv.iuh.edu.vn/SinhVien/GetDanhSachLichTheoTuan' \
+ -H 'Content-Type: application/x-www-form-urlencoded; charset=UTF-8' \
+ -H 'Accept: text/html, */*; q=0.01' \
+ -H 'X-Requested-With: XMLHttpRequest' \
+ -H 'cookie: PAVWs3tE769MuloUJ81Y=7lKfubkIU8Av5NrgAJAl12D3YRg7ndXpOOGHIVTRSus; DT_Session_Log=fbef7c88-a953-416b-9395-e54ab53a0f58; DT_DKHP_Reg=fbef7c88-a953-416b-9395-e54ab53a0f58' \
+ --data-raw 'pNgayHienTai=02%2F11%2F2026&pLoaiLich=0'
+
+# Response
+
+<style>
+    .box-zoom a {
+        font-size: 11px;
+        padding: 2px 5px;
+        margin-top: 15px !important;
+        width: 100%;
+    }
+
+        .box-zoom a:hover {
+            background-color: #f36a5a !important;
+            border-color: red !important;
+        }
+
+        .box-zoom a.btn-lms {
+            background-color: #ff851b !important;
+            border: 1px solid #ff851b !important;
+            border-radius: 4px !important;
+            margin-top: 5px !important;
+            color: white !important;
+        }
+
+            .box-zoom a.btn-lms:hover {
+                background-color: #e65c00 !important;
+                border-color: #e65c00 !important;
+                color: white !important;
+            }
+
+    .box-zoom i {
+        font-size: 11px !important;
+    }
+
+    .tooltip > .tooltip-inner {
+        border: 1px solid #c1c1c1;
+        padding: 10px;
+        max-width: 450px;
+        color: black;
+        text-align: left;
+        background-color: rgba(255, 255, 200,1);
+        background: rgba(255, 255, 200,1);
+        opacity: 1;
+        filter: alpha(opacity=100);
+        border-radius: 6px !important;
+        box-shadow: 3px 2px 4px 0px #c7c3c3;
+    }
+
+    .tooltip > .tooltip-arrow {
+        border-bottom-color: black;
+    }
+
+    .color-lichthi-chinhthuc {
+        background-color: #e8ffe1 !important;
+        border: 1px solid #c9d0db !important;
+    }
+    /*#region Menu */
+    .wp-menu-hover {
+        text-align: right;
+        color: #003763;
+    }
+
+        .wp-menu-hover .btn-func {
+            display: inline-block;
+            border: 1px solid #d9dee4;
+            width: 15px;
+            height: 20px;
+            text-align: center;
+            justify-content: center;
+            border-radius: 3px !important;
+            cursor: pointer;
+            position: relative;
+            background-color: #fff;
+        }
+
+            .wp-menu-hover .btn-func .sub-menu {
+                position: absolute;
+                left: 10px;
+                background-color: #fff;
+                border: 1px solid #eee;
+                list-style: none;
+                padding-left: 0;
+                box-shadow: 0 0 15px 1px rgb(69 65 78 / 20%);
+                margin-bottom: 0;
+                padding: 10px;
+                width: 180px;
+                visibility: hidden;
+                transition: 0.2s;
+                z-index: 10;
+                opacity: 0;
+                transition: visibility 0s, opacity 0.2s linear;
+                text-align: left;
+            }
+
+            .wp-menu-hover .btn-func:hover .sub-menu {
+                opacity: 1;
+                visibility: visible;
+                border-radius: 5px !important;
+            }
+
+    .sub-menu li {
+        padding: 3px 0;
+        font-size: 14px;
+    }
+    /*#endregion Menu */
+</style>
+
+    <span hidden id="warningPhongHoc" name="warningPhongHoc" lang="lichtheotuan-warningPhongHoc">Phòng học chưa được khởi tạo</span>
+    <span hidden id="warningGVNotFound" name="warningGVNotFound" lang="lichtheotuan-warningGVNotFound">Không tìm thấy thông tin</span>
+    <span hidden id="popupThongTinGV" name="popupThongTinGV" lang="lichtheotuan-popupThongTinGV">Thông tin giảng viên</span>
+    <span hidden id="popupHoTenGV" name="popupHoTenGV" lang="lichtheotuan-popupHoTenGV">Họ tên</span>
+    <span hidden id="popupSDTGV" name="popupSDTGV" lang="lichtheotuan-popupSDTGV">Số điện thoại</span>
+    <span hidden id="popupEmailGV" name="popupEmailGV" lang="lichtheotuan-popupEmailGV">Email</span>
+    <div class="table-responsive">
+        <table class="fl-table table table-bordered text-center no-footer dtr-inline" width="100%" role="grid">
+            <thead>
+                <tr role="row">
+                    <th lang="lichtheotuan-cahoc">Ca học</th>
+                    <th><span lang="lichtheotuan-mon">Thứ 2</span><br>02/11/2026</th>
+                    <th><span lang="lichtheotuan-tue">Thứ 3</span><br>03/11/2026</th>
+                    <th><span lang="lichtheotuan-wed">Thứ 4</span><br>04/11/2026</th>
+                    <th><span lang="lichtheotuan-thu">Thứ 5</span><br>05/11/2026</th>
+                    <th><span lang="lichtheotuan-fri">Thứ 6</span><br>06/11/2026</th>
+                    <th><span lang="lichtheotuan-sat">Thứ 7</span><br>07/11/2026</th>
+                    <th><span lang="lichtheotuan-sun">Chủ nhật</span><br>08/11/2026</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr role="row">
+                    <td lang="lichtheotuan-buoisang"><b>Sáng</b></td>
+                            <td>
+                                        <div class="content color-lichhoc text-start" data-bg="2750745" style="text-align:left">
+
+                                                <b><a href="javascript:" target="" style="text-decoration:none;color: #003763;" data-bs-toggle="tooltip" data-placement="auto" title="">Triết học M&#225;c - L&#234;nin</a></b>
+
+                                                <p>DHTMDT20B_TCTA - 429701380102</p>
+
+
+
+
+                                                    <p><span lang="lichtheotuan-tiet">Tiết</span>: 4 - 6<br /></p>
+
+                                                    <p><span lang="giang-duong">Phòng</span>:<font> N4.4 (N - Cơ sở Nguyễn Văn Dung)</font> </p>
+
+                                            
+
+
+                                                        <p><span lang="lichtheotuan-gv">GV</span>: <font>Nguyễn Thị Kim Chung </font></p>
+
+                                                                                        
+
+                                            
+
+
+                                                                                    </div>
+                            </td>
+                            <td></td>
+                            <td>
+                                        <div class="content color-lichhoc text-start" data-bg="2761228" style="text-align:left">
+
+                                                <b><a href="javascript:" target="" style="text-decoration:none;color: #003763;" data-bs-toggle="tooltip" data-placement="auto" title="">Quản trị t&#225;c nghiệp Thương mại điện tử</a></b>
+
+                                                <p>DHTMDT20B_TCTA - 429701766202</p>
+
+
+
+
+                                                    <p><span lang="lichtheotuan-tiet">Tiết</span>: 1 - 3<br /></p>
+
+                                                    <p><span lang="giang-duong">Phòng</span>:<font> N4.4 (N - Cơ sở Nguyễn Văn Dung)</font> </p>
+
+                                            
+
+
+                                                        <p><span lang="lichtheotuan-gv">GV</span>: <font>V&#245; Thị Minh Nhựt </font></p>
+
+                                                                                        
+
+                                            
+
+
+                                                                                    </div>
+                            </td>
+                            <td></td>
+                            <td></td>
+                            <td>
+                                        <div class="content color-lichhoc text-start" data-bg="2972586" style="background-color:#71cb35;border-color:#c9d0db;text-align:left;">
+
+                                                <b><a href="javascript:" target="" style="text-decoration:none;color: #003763;" data-bs-toggle="tooltip" data-placement="auto" title="">Ph&#226;n t&#237;ch thiết kế hệ thống thương mại điện tử</a></b>
+
+                                                <p>DHTMDT20B_TCTA - 429701766502</p>
+
+
+
+
+                                                    <p><span lang="lichtheotuan-tiet">Tiết</span>: 1 - 3<br /></p>
+
+                                                    <p><span lang="giang-duong">Phòng</span>:<font> H3.1.1 (H (CS1) - Cơ sở 1)</font> </p>
+
+                                            
+
+
+                                                        <p><span lang="lichtheotuan-gv">GV</span>: <font>L&#234; Thị &#193;nh Tuyết </font></p>
+
+                                                                                        
+
+                                            
+
+
+                                                                                    </div>
+                            </td>
+                            <td></td>
+                </tr>
+                <tr role="row">
+                    <td lang="lichtheotuan-buoichieu"><b>Chiều</b></td>
+                            <td>
+                                        <div class="content color-lichhoc text-start" data-bg="2914833" style="background-color:#71cb35;border-color:#c9d0db;text-align:left;">
+                                                                                            <b><a href="javascript:" target="" style="text-decoration:none;color: #003763;" data-bs-toggle="tooltip" data-placement="auto" title="">Ph&#226;n t&#237;ch thiết kế hệ thống thương mại điện tử</a></b>
+
+
+                                                <p>DHTMDT20B_TCTA - 429701766502</p>
+
+
+
+                                                    <p><span lang="lichtheotuan-tiet">Tiết</span>: 7 - 9<br /></p>
+
+                                                    <p><span lang="giang-duong">Phòng</span>: <font>H4.2.1 (H (CS1) - Cơ sở 1)</font></p>
+
+                                            
+
+
+                                                        <p><span lang="lichtheotuan-gv">GV</span>: <font>L&#234; Thị &#193;nh Tuyết</font></p>
+
+                                                                                        
+
+                                            
+
+
+
+                                        </div>
+                            </td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td>
+                                        <div class="content color-lichhoc text-start" data-bg="2776133" style="text-align:left">
+                                                                                            <b><a href="javascript:" target="" style="text-decoration:none;color: #003763;" data-bs-toggle="tooltip" data-placement="auto" title="">T&#224;i ch&#237;nh doanh nghiệp</a></b>
+
+
+                                                <p>DHKT21D_TCTA - 429700380206</p>
+
+
+
+                                                    <p><span lang="lichtheotuan-tiet">Tiết</span>: 7 - 9<br /></p>
+
+                                                    <p><span lang="giang-duong">Phòng</span>: <font>N10.3 (N - Cơ sở Nguyễn Văn Dung)</font></p>
+
+                                            
+
+
+                                                        <p><span lang="lichtheotuan-gv">GV</span>: <font>Lại Cao Mai Phương</font></p>
+
+                                                                                        
+
+                                            
+
+
+
+                                        </div>
+                            </td>
+                            <td></td>
+                            <td></td>
+                </tr>
+                <tr role="row">
+                    <td lang="lichtheotuan-buoitoi"><b>Tối</b></td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    <div class="tableGC">
+        <ul>
+            <li>
+                <span class="colorSTLichHoc"></span><label lang="lichtheotuan-lichhoc">Lịch học lý thuyết</label>
+            </li>
+            <li>
+                <span class="colorSTLichHoc" style="background-color: #71cb35; border-color: #c9d0db "></span><label lang="lichtheotuan-lichhoconline">Lịch học thực hành</label>
+            </li>
+            <li>
+                <span class="colorSTLichHoc" style="background-color:#92d6ff;border-color: #1da1f2"></span><label lang="lichtheotuan-lichhoconline">Lịch học trực tuyến</label>
+            </li>
+            <li>
+                <span class="colorSTLichThi"></span><label lang="lichtheotuan-lichthi">Lịch thi</label>
+            </li>
+                        <li>
+                <span class="colorSTTamNgung"></span><label lang="lichtheotuan-lichtamngung">Lịch tạm ngưng</label>
+            </li>
+        </ul>
+    </div>
+    <div style="margin-top: 10px;">
+        
+    </div>
+<input id="firstDatePrevOffWeek" name="firstDatePrevOffWeek" type="hidden" value="26/10/2026" />
+<input id="firstDateOffWeek" name="firstDateOffWeek" type="hidden" value="02/11/2026" />
+<input id="firstDateNextOffWeek" name="firstDateNextOffWeek" type="hidden" value="09/11/2026" />
+
+<script type="text/javascript">
+    $(document).ready(function () {
+        //Tooltips
+        $('[data-toggle="tooltip"]').tooltip();
+    });
+    function joinZoom(e) {
+
+        var joinZoomUrl = $(e).attr('data-joinZoomUrl');
+        var examUrl = $(e).attr('data-examUrl');
+        var idLichHoc = $(e).attr('data-idLichHoc');
+        var isLichHoc = $(e).attr('data-isLichHoc');
+
+        if (joinZoomUrl != null && joinZoomUrl != '') {
+            $.ajax({
+                type: "POST",
+                url: "/SinhVien/JoinZoomClass",
+                data: {
+                    param: { IDLichHoc: idLichHoc, IsLichHoc: isLichHoc}, joinUrl : joinZoomUrl
+                },
+                beforeSend: function () {
+                    loadingZoom();
+                },
+                success: function (data) {
+                    removeLoading();
+                    if (data != null && data.Code === "00") {
+                        window.open(joinZoomUrl, '_blank');
+                        //if (examUrl != '' && examUrl != null) {
+                        //    window.open(examUrl, '_blank');
+                        //}
+                    } else {
+                        showPopUpMessage(data.Message);
+                    }
+                },
+                fail: function (err) {
+                    removeLoading();
+                }
+            });
+        } else {
+            // <div hidden id="warningPhongHoc" name="warningPhongHoc" lang="lichtheotuan-warningPhongHoc">Phòng học chưa được khởi tạo</div>
+            var msgPhongHoc = document.getElementById('warningPhongHoc').innerHTML;
+            /*showPopUpMessage('Phòng học chưa được khởi tạo');*/
+            showPopUpMessage(msgPhongHoc);
+        }
+    }
+
+    function loadingZoom() {
+        var html = '<div id="loadingMask" class="k-loading-mask" style="width: 100%;height: 100%;top: 0px;left: 0px;z-index: 100000;display: block;background-color: #607d8b2b;"><i class="fa fa-spinner fa-pulse fa-3x fa-fw" style="position:absolute;top:10px;left:50%;color:#397FAE;margin-top:20%;margin-left:-45px;font-size:90px;"></i></div>';
+        $(html).appendTo(document.body);
+    }
+
+    function getThongTinGiangVien(e) {
+        var maGiangVien = $(e).attr('data-magiangvien');
+        var msgGVNotFound = document.getElementById('warningGVNotFound').innerHTML;
+        var popupTitle = document.getElementById('popupThongTinGV').innerHTML;
+        var popupHoTen = document.getElementById('popupHoTenGV').innerHTML;
+        var popupSDT = document.getElementById('popupSDTGV').innerHTML;
+        var popupEmail = document.getElementById('popupEmailGV').innerHTML;
+        $.dialog({
+
+            icon: 'fa fa-user-circle-o',
+            title: '<p id="p1" style="font-size: 18px;">' + popupTitle + '</p>',
+            content: function () {
+                var self = this;
+                return $.ajax({
+                    url: '/SinhVien/GetThongTinGiangVien',
+                    data: {
+                        param: { MaGiangVien: maGiangVien}
+                    },
+                    dataType: 'json',
+                    method: "POST"
+                }).done(function (data) {
+                    if (data != null) {
+                        let text = '';
+                        for (let i = 0; i < data.length; ++i) {
+                            text += '<p style="margin-bottom: 9px;">' + popupHoTen + ': <b>' + data[i].HoTen + '</b></p>';
+                                text += '<p style="margin-bottom: 4px;">' + popupSDT + ': <b>' + data[i].SoDienThoai + '</b></p>';
+                            text += '<p style="margin-bottom: 4px;">' + popupEmail + ': <b>' + data[i].Email + '</b></p>';
+                            if (i + 1 < data.length) {
+                                text += '<hr/>';
+                            }
+                        }
+                        self.setContent(text);
+                    }
+                }).fail(function () {
+                    /*self.setContent('Không tìm thấy thông tin');*/
+                    self.setContent(msgGVNotFound);
+                });
+
+            }
+        });
+
+    }
+
+    function removeLoading() {
+        $( "#loadingMask" ).remove();
+    }
+    function showPopUpMessage(message) {
+        $('<div id="boxes" style="height: inherit !important;"><div id="dialog" class="window" style="height: inherit !important;position: fixed; width:350px; top: 50%; left: 50%; transform: translate(-50%, -50%); display: block;padding-bottom: 15px;"><div class="content"></div><div class="text-center"><button onclick="closePopup()" class="btn btn-sm btn-save">Đóng</button></div></div><div id="mask" style="width: 100%; height: 100vh; display: block; opacity: 0.9;"></div></div>').appendTo(document.body);
+        $('#boxes .content').html('<b>' + message + '</b>');
+    }
+        function themMoiGhiNhanSoDauBai(idLichHoc) {
+        $.ajax({
+            url: "/SinhVien/SDB_AddGhiNhanSoDauBai",
+            type: 'GET',
+            dataType: 'html',
+            data: {
+                pIDLichHoc: idLichHoc
+            },
+            success: function (data) {
+                $.confirm({
+                    title: 'Thêm mới sổ đầu bài',
+                    boxWidth: '750px',
+                    useBootstrap: false,
+                    content: data,
+                    buttons: {
+                        cancel: {
+                            text: 'Hủy',
+                            btnClass: "hidden button-cancel-popupAddEdit"
+                        }
+                    }
+                });
+            },
+        });
+    }
+    function xemChiTietDanhSachLichHoc(idLichHoc) {
+    $.ajax({
+        url: "/SinhVien/SDB_DanhSachLichHoc",
+        type: 'GET',
+        dataType: 'html',
+        data: {
+            pIDLichHoc: idLichHoc
+        },
+        success: function (data) {
+            $.confirm({
+                title: 'Danh sách lịch học',
+                boxWidth: '750px',
+                useBootstrap: false,
+                content: data,
+                buttons: {
+                    cancel: {
+                        text: 'Hủy',
+                        btnClass: "hidden button-cancel-popupDS"
+                    }
+                }
+            });
+        },
+    });
+}
+</script>
+
+<script type="text/javascript" src="/Scripts/lang/lang.js"></script>

@@ -15,6 +15,8 @@ datas = [
     (os.path.join(here, 'iuh_ledger', 'assets'), os.path.join('iuh_ledger', 'assets')),
     (os.path.join(here, 'iuh_ledger', 'assets'), 'assets'),
 ]
+if os.path.exists(os.path.join(here, 'capture', '004_GetDanhSachLichTheoTuan_POST.txt')):
+    datas.append((os.path.join(here, 'capture', '004_GetDanhSachLichTheoTuan_POST.txt'), 'capture'))
 if os.path.exists(os.path.join(here, 'config.json')):
     datas.append((os.path.join(here, 'config.json'), '.'))
 elif os.path.exists(os.path.join(here, 'iuh_ledger', 'config.json')):

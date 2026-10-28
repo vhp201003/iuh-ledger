@@ -95,3 +95,18 @@ class CatalogService:
         )
         html = res.read().decode("utf-8", errors="replace")
         return IUHHTMLParser.parse_registered_courses(html)
+
+    def get_weekly_timetable(self, ngay_hien_tai: str = "", loai_lich: int = 0) -> dict:
+        """
+        Retrieves the student's weekly timetable matrix from POST /SinhVien/GetDanhSachLichTheoTuan.
+        """
+        post_data = {"pLoaiLich": str(loai_lich)}
+        if ngay_hien_tai:
+            post_data["pNgayHienTai"] = str(ngay_hien_tai)
+        res = self.client.post(
+            IUHEndpoints.LICH_THEO_TUAN,
+            data=post_data,
+            timeout=10
+        )
+        html = res.read().decode("utf-8", errors="replace")
+        return IUHHTMLParser.parse_weekly_timetable(html)

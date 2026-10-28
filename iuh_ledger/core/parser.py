@@ -243,3 +243,118 @@ class IUHHTMLParser:
                     guid_lhp=guid_lhp_m.group(1) if guid_lhp_m else (guid_m.group(1) if guid_m else "")
                 ))
         return courses
+
+    @staticmethod
+    def parse_weekly_timetable(html_str: str) -> dict:
+        """
+        Parses the weekly timetable matrix HTML from POST /SinhVien/GetDanhSachLichTheoTuan.
+        Extracts navigation dates (firstDatePrevOffWeek, firstDateOffWeek, firstDateNextOffWeek),
+        column dates for Thứ 2..Chủ nhật, and all rendered schedule slot cards.
+        """
+        result = {
+            "prev_week": "",
+            "current_week": "",
+            "next_week": "",
+            "day_dates": {},
+            "slots": []
+        }
+        if not html_str:
+            return result
+
+        prev_m = re.search(r'id=["\']firstDatePrevOffWeek["\'][^>]*value=["\']([^"\']+)["\']', html_str, re.I)
+        curr_m = re.search(r'id=["\']firstDateOffWeek["\'][^>]*value=["\']([^"\']+)["\']', html_str, re.I)
+        next_m = re.search(r'id=["\']firstDateNextOffWeek["\'][^>]*value=["\']([^"\']+)["\']', html_str, re.I)
+        if prev_m:
+            result["prev_week"] = prev_m.group(1).strip()
+        if curr_m:
+            result["current_week"] = curr_m.group(1).strip()
+        if next_m:
+            result["next_week"] = next_m.group(1).strip()
+
+        day_codes = ["2", "3", "4", "5", "6", "7", "CN"]
+        thead_m = re.search(r'<thead[^>]*>(.*?)</thead>', html_str, re.DOTALL | re.I)
+        if thead_m:
+            ths = re.findall(r'<th[^>]*>(.*?)</th>', thead_m.group(1), re.DOTALL | re.I)
+            for idx, code in enumerate(day_codes):
+                if idx + 1 < len(ths):
+                    dm = re.search(r'(\d{2}/\d{2}/\d{4})', ths[idx + 1])
+                    if dm:
+                        result["day_dates"][code] = dm.group(1)
+
+        tbody_m = re.search(r'<tbody[^>]*>(.*?)</tbody>', html_str, re.DOTALL | re.I)
+        if not tbody_m:
+            return result
+
+        rows = re.findall(r'<tr[^>]*>(.*?)</tr>', tbody_m.group(1), re.DOTALL | re.I)
+        shift_map = {0: "sang", 1: "chieu", 2: "toi"}
+        for r_idx, row_html in enumerate(rows):
+            ca = shift_map.get(r_idx)
+            if not ca:
+                continue
+            tds = re.findall(r'<td[^>]*>(.*?)</td>', row_html, re.DOTALL | re.I)
+            for d_idx, day_code in enumerate(day_codes):
+                if d_idx + 1 >= len(tds):
+                    break
+                cell_html = tds[d_idx + 1]
+                for card_m in re.finditer(r'<div[^>]*class=["\']([^"\']*content[^"\']*)["\'][^>]*>(.*?)</div>', cell_html, re.DOTALL | re.I):
+                    card_tag = cell_html[card_m.start():cell_html.find('>', card_m.start()) + 1]
+                    card_cls = card_m.group(1).lower()
+                    card_body = card_m.group(2)
+
+                    style_m = re.search(r'style=["\']([^"\']*)["\']', card_tag, re.I)
+                    style_str = (style_m.group(1) if style_m else "").lower()
+                    if "lichthi" in card_cls:
+                        loai = "lich_thi"
+                    elif "tamngung" in card_cls:
+                        loai = "tam_ngung"
+                    elif "#71cb35" in style_str:
+                        loai = "thuc_hanh"
+                    elif "#92d6ff" in style_str:
+                        loai = "truc_tuyen"
+                    else:
+                        loai = "ly_thuyet"
+
+                    title_m = re.search(r'<b>\s*<a[^>]*>(.*?)</a>\s*</b>', card_body, re.DOTALL | re.I)
+                    ten_mon = _clean_text(title_m.group(1)) if title_m else "Học phần"
+
+                    p_tags = [_clean_text(p.group(1)) for p in re.finditer(r'<p[^>]*>(.*?)</p>', card_body, re.DOTALL | re.I)]
+                    ten_lop = p_tags[0] if p_tags else ""
+                    ma_lhp_m = re.search(r'(\d{10,14})', ten_lop)
+                    ma_lhp = ma_lhp_m.group(1) if ma_lhp_m else ""
+
+                    tiet_str = ""
+                    tiet_start, tiet_end = 0, 0
+                    phong_str = ""
+                    gv_str = ""
+                    ghi_chu_parts = []
+
+                    for pt in p_tags[1:]:
+                        if pt.lower().startswith("tiết"):
+                            tm = re.search(r'(\d+)\s*(?:->|-)\s*(\d+)', pt)
+                            if tm:
+                                tiet_start, tiet_end = int(tm.group(1)), int(tm.group(2))
+                                tiet_str = f"{tiet_start} - {tiet_end}"
+                        elif pt.lower().startswith("phòng"):
+                            phong_str = re.sub(r'^phòng\s*:\s*', '', pt, flags=re.I).strip()
+                        elif pt.lower().startswith("gv"):
+                            gv_str = re.sub(r'^gv\s*:\s*', '', pt, flags=re.I).strip()
+                        elif pt:
+                            ghi_chu_parts.append(pt)
+
+                    result["slots"].append({
+                        "day": day_code,
+                        "ca": ca,
+                        "ten_mon": ten_mon,
+                        "ma_lhp": ma_lhp,
+                        "ten_lop": ten_lop,
+                        "tiet": tiet_str,
+                        "tiet_start": tiet_start,
+                        "tiet_end": tiet_end,
+                        "phong": phong_str,
+                        "giang_vien": gv_str,
+                        "thoi_gian": result["day_dates"].get(day_code, ""),
+                        "ghi_chu": ", ".join(ghi_chu_parts),
+                        "loai": loai,
+                        "is_preview": False
+                    })
+        return result

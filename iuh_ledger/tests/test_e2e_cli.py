@@ -300,17 +300,19 @@ class TestIUHSniperE2E(unittest.TestCase):
             self.assertEqual(bridge.radar.interval_seconds, 45)
             self.assertEqual(up_res["settings"]["telegram_chat_id"], "12345678")
 
-            # 3. Weekly schedule contract
+            # 3. Weekly schedule contract (parsed from captured GetDanhSachLichTheoTuan when offline)
             sched_res = bridge.get_weekly_schedule(id_dot="62")
             self.assertTrue(sched_res["success"])
-            self.assertGreaterEqual(len(sched_res["slots"]), 7)
+            self.assertGreaterEqual(len(sched_res["slots"]), 5)
+            self.assertEqual(sched_res["current_week"], "02/11/2026")
+            self.assertEqual(sched_res["prev_week"], "26/10/2026")
+            self.assertEqual(sched_res["next_week"], "09/11/2026")
             first_slot = sched_res["slots"][0]
             self.assertIn("day", first_slot)
             self.assertIn("ca", first_slot)
             self.assertIn("ten_mon", first_slot)
             self.assertIn("loai", first_slot)
             self.assertFalse(first_slot["is_preview"])
-
             # 4. Registered + Preview schedule integration & Conflict Detection
             from iuh_ledger.core.models import RegisteredCourse
             preview_class = {
@@ -370,17 +372,18 @@ class TestIUHSniperE2E(unittest.TestCase):
                 "ma_hp": "429700363401",
                 "ten_lop": "DHSH20A_TCTA",
                 "nhom_th": 1,
-                "lich_lt": "Thứ 3 (Tiết 7 - 9), Phòng N4.6 CLC",
+                "lich_lt": "Thứ 2 (Tiết 4 - 6), Phòng N4.4",
                 "lich_th": "Thứ 5 (Tiết 1 - 3), Phòng H7.01",
                 "giang_vien": "TS Phan Trần Minh Khuê"
             }
             demo_res = bridge.get_weekly_schedule(id_dot="62", preview_classes=[demo_preview])
             demo_prev_slots = [s for s in demo_res["slots"] if s.get("is_preview")]
             self.assertEqual(len(demo_prev_slots), 2)
-            # LT on Tuesday afternoon (7-9) overlaps with default Cơ sở dữ liệu (Tuesday 7-9)
-            tue_slot = next(s for s in demo_prev_slots if s["day"] == "3")
+            # LT on Monday morning (Tiết 4 - 6) overlaps with captured Triết học Mác - Lênin (Thứ 2, Tiết 4 - 6)
+            mon_slot = next(s for s in demo_prev_slots if s["day"] == "2")
             thu_slot = next(s for s in demo_prev_slots if s["day"] == "5")
-            self.assertTrue(tue_slot["has_conflict"])
+            self.assertTrue(mon_slot["has_conflict"])
+            self.assertIn("Triết học Mác - Lênin", mon_slot["conflict_with"])
             self.assertFalse(thu_slot["has_conflict"])
         finally:
             if os.path.exists(tmp_cfg):

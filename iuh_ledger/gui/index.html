@@ -379,10 +379,15 @@
       <section class="ledger-section" id="view-schedule" aria-labelledby="heading-schedule" hidden>
         <div class="section-header">
           <div class="schedule-header-controls">
-            <h2 id="heading-schedule">Thời khóa biểu tổng quan học kỳ</h2>
+            <h2 id="heading-schedule">Thời khóa biểu theo tuần</h2>
             <div class="btn-group-segmented" role="group" aria-label="Chế độ hiển thị thời khóa biểu">
               <button type="button" class="btn btn-segmented active" id="btn-sched-mode-preview" onclick="setScheduleMode('preview')">Tổng quan ghép lớp (Đã ĐK + Dự kiến)</button>
               <button type="button" class="btn btn-segmented" id="btn-sched-mode-official" onclick="setScheduleMode('official')">Chỉ lớp đã đăng ký</button>
+            </div>
+            <div class="btn-row-actions" aria-label="Điều hướng tuần học">
+              <button type="button" class="btn" id="btn-week-prev" onclick="navigateScheduleWeek('prev')">Tuần trước</button>
+              <button type="button" class="btn" id="btn-week-current" onclick="navigateScheduleWeek('current')">Hiện tại</button>
+              <button type="button" class="btn" id="btn-week-next" onclick="navigateScheduleWeek('next')">Tuần kế</button>
             </div>
             <button type="button" class="btn" id="btn-return-to-open" onclick="returnToSubjectDrawer()" hidden>Quay lại chọn lớp</button>
           </div>
@@ -417,13 +422,13 @@
             <thead>
               <tr>
                 <th scope="col" class="th-shift">Ca học</th>
-                <th scope="col" class="th-weekday">Thứ 2</th>
-                <th scope="col" class="th-weekday">Thứ 3</th>
-                <th scope="col" class="th-weekday">Thứ 4</th>
-                <th scope="col" class="th-weekday">Thứ 5</th>
-                <th scope="col" class="th-weekday">Thứ 6</th>
-                <th scope="col" class="th-weekday">Thứ 7</th>
-                <th scope="col" class="th-weekday">Chủ nhật</th>
+                <th scope="col" class="th-weekday">Thứ 2<span class="date-chip" id="sched-date-2"></span></th>
+                <th scope="col" class="th-weekday">Thứ 3<span class="date-chip" id="sched-date-3"></span></th>
+                <th scope="col" class="th-weekday">Thứ 4<span class="date-chip" id="sched-date-4"></span></th>
+                <th scope="col" class="th-weekday">Thứ 5<span class="date-chip" id="sched-date-5"></span></th>
+                <th scope="col" class="th-weekday">Thứ 6<span class="date-chip" id="sched-date-6"></span></th>
+                <th scope="col" class="th-weekday">Thứ 7<span class="date-chip" id="sched-date-7"></span></th>
+                <th scope="col" class="th-weekday">Chủ nhật<span class="date-chip" id="sched-date-CN"></span></th>
               </tr>
             </thead>
             <tbody>
