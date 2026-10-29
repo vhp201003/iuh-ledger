@@ -7,11 +7,14 @@ import os
 import sys
 import json
 import ssl
+import html as html_lib
+import tempfile
 import threading
 import urllib.request
 import urllib.parse
 from http.cookiejar import CookieJar, Cookie
 from typing import Optional, Dict, Any
+from iuh_ledger.core.endpoints import IUHEndpoints
 
 class IUHClient:
     DEFAULT_HEADERS = {
@@ -33,6 +36,7 @@ class IUHClient:
         else:
             self.session_path = "session.json"
         self._lock = threading.RLock()
+        self._last_saved_cookies: Dict[str, str] = {}
         self.cookie_jar = CookieJar()
         # SSL Context
         self.ssl_ctx = ssl.create_default_context()
@@ -65,8 +69,19 @@ class IUHClient:
         target = filepath or self.session_path
         data = self.get_cookies_dict()
         with self._lock:
-            with open(target, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=2)
+            directory = os.path.dirname(os.path.abspath(target))
+            fd, tmp_path = tempfile.mkstemp(dir=directory, suffix=".tmp")
+            try:
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
+                    json.dump(data, f, indent=2)
+                os.replace(tmp_path, target)
+            except BaseException:
+                if os.path.exists(tmp_path):
+                    os.remove(tmp_path)
+                raise
+            if target == self.session_path:
+                self._last_saved_cookies = dict(data)
+
     def load_cookies(self, filepath: Optional[str] = None) -> bool:
         target = filepath or self.session_path
         if not os.path.exists(target):
@@ -76,6 +91,8 @@ class IUHClient:
                 data = json.load(f)
             for k, v in data.items():
                 self.set_cookie(k, v)
+            if target == self.session_path:
+                self._last_saved_cookies = dict(data)
             return len(data) > 0
         except Exception:
             return False
@@ -109,7 +126,21 @@ class IUHClient:
             opener = self.opener
 
         with self._lock:
-            return opener.open(req, timeout=timeout)
+            resp = opener.open(req, timeout=timeout)
+            geturl = getattr(resp, "geturl", None)
+            self._persist_rotated_cookies(str(geturl()) if geturl else url)
+            return resp
+
+    def _persist_rotated_cookies(self, resp_url: str):
+        """Saves rotated session cookies, never overwriting them with anonymous login-page cookies."""
+        if "sinh-vien-dang-nhap" in resp_url.lower():
+            return
+        current = self.get_cookies_dict()
+        if "ASC.AUTH" in current and current != self._last_saved_cookies:
+            try:
+                self.save_cookies()
+            except OSError:
+                pass
 
     def get(self, url: str, headers: Optional[Dict[str, str]] = None, **kwargs):
         return self.request("GET", url, headers=headers, **kwargs)
@@ -117,23 +148,33 @@ class IUHClient:
     def post(self, url: str, data: Optional[Dict[str, Any]] = None, headers: Optional[Dict[str, str]] = None, **kwargs):
         return self.request("POST", url, data=data, headers=headers, **kwargs)
 
+    _AUTH_MARKERS = (
+        "Mã sinh viên", "Mã lớp HP", "Mã lớp  HP", "Lớp HP đã đăng ký",
+        "Không tìm thấy lớp HP", "Không tìm thấy HP đã đăng ký", "dangkyhocphan-",
+    )
+
+    def _probe_session(self, id_dot: str) -> bool:
+        res = self.post(
+            IUHEndpoints.HOC_PHAN_DA_DK,
+            data={"param[IDDotDangKy]": id_dot, "param[IDLoaiDangKy]": "1"},
+            timeout=10
+        )
+        geturl = getattr(res, "geturl", None)
+        if geturl and "sinh-vien-dang-nhap" in str(geturl()).lower():
+            return False
+        html = html_lib.unescape(res.read().decode("utf-8", errors="replace"))
+        if "__RequestVerificationToken" in html and "UserName" in html:
+            return False
+        return any(k in html for k in self._AUTH_MARKERS)
+
     def is_session_valid(self, id_dot: str = "62") -> bool:
         """
-        Pings HocPhanDaDangKy to verify if session cookies are alive.
+        Pings HocPhanDaDangKy to verify session cookies are alive. Falls back to the
+        default semester so a semester with no data is not mistaken for an expired session.
         """
         try:
-            res = self.post(
-                IUHEndpoints.HOC_PHAN_DA_DK,
-                data={
-                    "param[IDDotDangKy]": id_dot,
-                    "param[IDLoaiDangKy]": "1"
-                },
-                timeout=10
-            )
-            html = res.read().decode("utf-8", errors="replace")
-            # If valid, HTML contains student table or registration header
-            if any(k in html for k in ["Mã sinh viên", "Mã lớp  HP", "Lớp HP đã đăng ký", "Không tìm thấy lớp HP"]):
+            if self._probe_session(str(id_dot)):
                 return True
-            return False
+            return str(id_dot) != "62" and self._probe_session("62")
         except Exception:
             return False

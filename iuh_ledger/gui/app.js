@@ -14,14 +14,14 @@ let hoverPrefetchTimer = null;
 let sniperTargets = [];
 
 function updateSniperTabBadge() {
-  const tabSniper = document.getElementById("tab-sniper");
+  const tabSniperLabel = document.getElementById("tab-sniper-label") || document.getElementById("tab-sniper");
   const heading = document.getElementById("heading-sniper-station");
   const count = (sniperTargets && sniperTargets.length) || 0;
-  if (tabSniper) {
-    tabSniper.textContent = sniperActive ? `Trạm giám sát (${count}) [Đang quét]` : `Trạm giám sát (${count})`;
+  if (tabSniperLabel) {
+    tabSniperLabel.textContent = sniperActive ? `Danh sách chờ (${count}) [Đang chạy]` : `Danh sách chờ (${count})`;
   }
   if (heading) {
-    heading.textContent = `Hàng đợi mục tiêu giám sát (${count})`;
+    heading.textContent = `Danh sách lớp chờ đăng ký (${count})`;
   }
 }
 function getSubjectCacheKey(idDot, maMon, loaiDk, noConflict) {
@@ -304,8 +304,7 @@ async function inspectSubjectClasses(maMon, maHp, tenMon, maMonCha = "", forceRe
                   <td>
                     <div class="btn-row-actions">
                       <button type="button" class="btn btn--accent-outline" onclick="triggerDirectRegister('${escapeAttr(currentSemesterId)}', 'GUID_${escapeAttr(maMon)}', null, ${currentLoaiDk}, '', '${escapeAttr(tenMon)}', 'DHLOP_${escapeAttr(maMon)}')">Đăng ký ngay</button>
-                      <button type="button" class="btn" onclick="addTargetToQueue('${escapeAttr(currentSemesterId)}', '${escapeAttr(maMon)}', '${escapeAttr(maHp)}', '${escapeAttr(tenMon)}', 'GUID_${escapeAttr(maMon)}', 'DHLOP_${escapeAttr(maMon)}', null, ${currentLoaiDk}, '')">Thêm giám sát</button>
-                      <button type="button" class="btn" onclick="previewClassOnSchedule('${escapeAttr(currentSemesterId)}', '${escapeAttr(maMon)}', '${escapeAttr(maHp)}01', '${escapeAttr(tenMon)}', 'GUID_${escapeAttr(maMon)}', 'DHLOP_${escapeAttr(maMon)}', null)">Xem thử TKB</button>
+                      <button type="button" class="btn" onclick="addTargetToQueue('${escapeAttr(currentSemesterId)}', '${escapeAttr(maMon)}', '${escapeAttr(maHp)}', '${escapeAttr(tenMon)}', 'GUID_${escapeAttr(maMon)}', 'DHLOP_${escapeAttr(maMon)}', null, ${currentLoaiDk}, '')">Thêm vào DS chờ</button>
                     </div>
                   </td>
                 </tr>
@@ -405,9 +404,10 @@ function renderEnrichedDrawerRows(rows, maMon, maHp, tenMon, maMonCha) {
     const canDirectReg = avail > 0 && !r.da_khoa;
     const badgeClass = canDirectReg ? "stamp-badge" : "stamp-badge stamp-badge--neutral";
     const badgeText = r.da_khoa ? "Đã khóa" : (avail > 0 ? `Còn ${avail} chỗ` : "Đã đủ sĩ số");
-    const sniperLabel = avail > 0 ? "Thêm giám sát" : "Tự động chờ lớp";
-    const nhomArg = (r.nhom_th !== null && r.nhom_th !== undefined) ? Number(r.nhom_th) : "null";
-
+    const normRowNhom = (r.nhom_th !== null && r.nhom_th !== undefined) ? Number(r.nhom_th) : null;
+    const inQueue = sniperTargets.some(t => String(t.guid_lhp) === String(r.guid_lhp) && ((t.nhom_th ?? null) === normRowNhom));
+    const sniperLabel = inQueue ? "Đã trong DS chờ" : "Thêm vào DS chờ";
+    const nhomArg = normRowNhom !== null ? normRowNhom : "null";
     const thLineHtml = r.lich_th
       ? `<div class="schedule-line">TH: ${escapeHtml(r.lich_th)}</div>`
       : "";
@@ -444,7 +444,6 @@ function renderEnrichedDrawerRows(rows, maMon, maHp, tenMon, maMonCha) {
           <div class="btn-row-actions">
             <button type="button" class="btn btn--accent-outline" ${canDirectReg ? "" : "disabled"} onclick="triggerDirectRegister('${escapeAttr(currentSemesterId)}', '${escapeAttr(r.guid_lhp)}', ${nhomArg}, ${currentLoaiDk}, '${escapeAttr(maMonCha || r.ma_mon_cha || "")}', '${escapeAttr(tenMon)}', '${escapeAttr(r.ten_lop)}')">Đăng ký ngay</button>
             <button type="button" class="btn" onclick="addTargetToQueue('${escapeAttr(currentSemesterId)}', '${escapeAttr(maMon)}', '${escapeAttr(maHp)}', '${escapeAttr(tenMon)}', '${escapeAttr(r.guid_lhp)}', '${escapeAttr(r.ten_lop)}', ${nhomArg}, ${currentLoaiDk}, '${escapeAttr(maMonCha || r.ma_mon_cha || "")}')">${sniperLabel}</button>
-            <button type="button" class="btn" onclick="previewClassOnSchedule('${escapeAttr(currentSemesterId)}', '${escapeAttr(maMon)}', '${escapeAttr(r.ma_lhp || maHp)}', '${escapeAttr(tenMon)}', '${escapeAttr(r.guid_lhp)}', '${escapeAttr(r.ten_lop)}', ${nhomArg})">Xem thử TKB</button>
           </div>
         </td>
       </tr>
@@ -494,7 +493,7 @@ function lookupClassRowMeta(maMon, guidLhp, normNhom) {
     if (match) return match;
   }
   // 2. Fallback: scrape from rendered DOM row in drawer
-  const btn = document.querySelector(`button[onclick*="previewClassOnSchedule"][onclick*="${guidLhp}"]`);
+  const btn = document.querySelector(`button[onclick*="addTargetToQueue"][onclick*="${guidLhp}"]`);
   const tr = btn ? btn.closest("tr") : null;
   if (tr) {
     const lines = Array.from(tr.querySelectorAll(".schedule-line")).map(el => el.textContent.trim());
@@ -596,8 +595,8 @@ async function addTargetToQueue(idDot, maMon, maHp, tenMon, guidLhp, tenLop, nho
   }
 
   renderSniperStationTargets();
-  showInlineBanner(`Đã thêm ${tenMon} (${tenLop}, ${groupText}) vào Trạm giám sát đăng ký.`);
-  appendTelemetryLog(`Đã thêm mục tiêu: ${tenMon} (${tenLop}, ${groupText}, ${loaiText})`);
+  showInlineBanner(`Đã thêm ${tenMon} (${tenLop}, ${groupText}) vào Danh sách chờ đăng ký.`);
+  appendTelemetryLog(`Đã thêm vào DS chờ: ${tenMon} (${tenLop}, ${groupText}, ${loaiText})`);
 }
 
 function renderSniperStationTargets() {
@@ -623,10 +622,10 @@ function renderSniperStationTargets() {
     const loaiLabel = LOAI_DK_LABELS[t.loai_dk] || "Học mới";
     const sisoText = (t.si_so_dk !== undefined && t.si_so_dk !== null && t.si_so_max !== undefined && t.si_so_max !== null)
       ? `${t.si_so_dk} / ${t.si_so_max}`
-      : "Chưa quét";
+      : "Chưa kiểm tra";
     const isReg = Boolean(t.registered);
     const badgeClass = isReg ? "stamp-badge" : "stamp-badge stamp-badge--neutral";
-    const badgeText = isReg ? "Đã ghi danh" : (t.slot_available ? "Có chỗ trống" : "Đang chờ slot");
+    const badgeText = isReg ? "Đã đăng ký" : (t.slot_available ? "Còn chỗ trống" : "Chờ mở / Đầy");
     const latencyText = t.latency_ms ? `${t.latency_ms} ms` : "—";
 
     return `
@@ -644,7 +643,7 @@ function renderSniperStationTargets() {
         <td class="mono" id="latency-${escapeAttr(tKey)}">${latencyText}</td>
         <td>
           <div class="btn-row-actions">
-            <button type="button" class="btn btn--accent-outline" onclick="fireTargetNow('${escapeAttr(tKey)}')">Bắn thử ngay</button>
+            <button type="button" class="btn btn--accent-outline" onclick="fireTargetNow('${escapeAttr(tKey)}')">Đăng ký ngay</button>
             <button type="button" class="btn" onclick="removeTargetFromQueue('${escapeAttr(tKey)}')">Xóa</button>
           </div>
         </td>
@@ -667,12 +666,12 @@ async function removeTargetFromQueue(targetKey) {
     sniperTargets = sniperTargets.filter(t => (t.target_key || `${t.guid_lhp}_${t.nhom_th || 0}`) !== targetKey);
   }
   renderSniperStationTargets();
-  appendTelemetryLog(`Đã xóa mục tiêu ${targetKey} khỏi hàng đợi.`);
+  appendTelemetryLog(`Đã xóa lớp ${targetKey} khỏi danh sách chờ.`);
 }
 
 async function clearAllTargets() {
   if (sniperTargets.length === 0) return;
-  if (!confirm("Xác nhận xóa toàn bộ mục tiêu trong khay canh lớp?")) return;
+  if (!confirm("Xác nhận xóa toàn bộ lớp học phần trong Danh sách chờ?")) return;
   if (hasBridge()) {
     try {
       await window.pywebview.api.clear_targets();
@@ -682,17 +681,17 @@ async function clearAllTargets() {
   }
   sniperTargets = [];
   renderSniperStationTargets();
-  appendTelemetryLog("Đã xóa toàn bộ mục tiêu khỏi trạm canh lớp.");
+  appendTelemetryLog("Đã xóa toàn bộ lớp khỏi danh sách chờ.");
 }
 
 async function fireTargetNow(targetKey) {
   const t = sniperTargets.find(item => (item.target_key || `${item.guid_lhp}_${item.nhom_th || 0}`) === targetKey);
   if (!t) return;
   const groupText = t.nhom_th ? `Nhóm TH ${t.nhom_th}` : "Thuần LT";
-  appendTelemetryLog(`[Bắn thủ công] Gửi lệnh ghi danh ${t.ten_mon} (${t.ten_lop}, ${groupText})…`);
+  appendTelemetryLog(`[Thủ công] Gửi lệnh đăng ký ${t.ten_mon} (${t.ten_lop}, ${groupText})…`);
   const res = await triggerDirectRegister(t.id_dot, t.guid_lhp, t.nhom_th, t.loai_dk, t.ma_mon_cha || "", t.ten_mon, t.ten_lop);
   if (res) {
-    appendTelemetryLog(`[Bắn thủ công] Kết quả: ${res.message || (res.success ? "Thành công" : "Thất bại")}`, res.success, !res.success);
+    appendTelemetryLog(`[Thủ công] Kết quả: ${res.message || (res.success ? "Thành công" : "Thất bại")}`, res.success, !res.success);
     if (res.success) {
       t.registered = true;
       renderSniperStationTargets();
@@ -700,6 +699,34 @@ async function fireTargetNow(targetKey) {
   }
 }
 
+async function fireAllTargetsNow() {
+  if (!sniperTargets || sniperTargets.length === 0) {
+    showInlineBanner("Danh sách chờ đang trống.");
+    return;
+  }
+  const pendingCount = sniperTargets.filter(t => !t.registered).length;
+  if (pendingCount === 0) {
+    appendTelemetryLog("Tất cả các lớp trong danh sách chờ đều đã được đăng ký.", true);
+    return;
+  }
+  appendTelemetryLog(`Đang gửi lệnh đăng ký đồng loạt cho ${pendingCount} lớp trong danh sách chờ…`);
+  if (!hasBridge()) {
+    appendTelemetryLog("Mô phỏng: Đã gửi lệnh đăng ký đồng loạt.");
+    return;
+  }
+  const btn = document.getElementById("btn-fire-all");
+  if (btn) btn.disabled = true;
+  try {
+    const res = await window.pywebview.api.fire_all_targets();
+    if (res && res.events) {
+      processSniperEvents(res.events);
+    }
+  } catch (e) {
+    appendTelemetryLog("Lỗi khi đăng ký đồng loạt: " + String(e), false, true);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
 function appendTelemetryLog(message, isSuccess = false, isError = false) {
   const box = document.getElementById("sniper-telemetry-log");
   if (!box) return;
@@ -721,17 +748,17 @@ function clearTelemetryLog() {
 
 async function runSniperSweepOnce() {
   if (!hasBridge()) {
-    appendTelemetryLog("Quét thử mô phỏng: 0 mục tiêu.");
+    appendTelemetryLog("Kiểm tra mô phỏng: 0 lớp.");
     return;
   }
-  appendTelemetryLog("Đang quét nhanh một lượt tất cả mục tiêu…");
+  appendTelemetryLog("Đang kiểm tra sĩ số đồng loạt cho toàn bộ danh sách chờ…");
   try {
     const res = await window.pywebview.api.poll_sniper_once();
     if (res && res.events) {
       processSniperEvents(res.events);
     }
   } catch (e) {
-    appendTelemetryLog("Lỗi quét: " + String(e), false, true);
+    appendTelemetryLog("Lỗi kiểm tra sĩ số: " + String(e), false, true);
   }
 }
 
@@ -751,15 +778,15 @@ function processSniperEvents(events) {
     if (statusEl) {
       if (ev.registered) {
         statusEl.className = "stamp-badge";
-        statusEl.textContent = "Đã ghi danh";
+        statusEl.textContent = "Đã đăng ký";
         playNotificationChime();
       } else if (ev.slot_available) {
         statusEl.className = "stamp-badge";
-        statusEl.textContent = "Có chỗ trống";
+        statusEl.textContent = "Còn chỗ trống";
         playNotificationChime();
       } else {
         statusEl.className = "stamp-badge stamp-badge--neutral";
-        statusEl.textContent = "Đang chờ slot";
+        statusEl.textContent = "Chờ mở / Đầy";
       }
     }
 
@@ -774,13 +801,15 @@ function processSniperEvents(events) {
 
     const groupText = ev.nhom_th ? `Nhóm TH ${ev.nhom_th}` : "Thuần LT";
     if (ev.registered) {
-      appendTelemetryLog(`CHIẾM CHỖ THÀNH CÔNG: ${ev.ten_mon} (${ev.ten_lop}, ${groupText}) - ${ev.message || "OK"}`, true);
+      appendTelemetryLog(`ĐĂNG KÝ THÀNH CÔNG: ${ev.ten_mon} (${ev.ten_lop}, ${groupText}) - ${ev.message || "OK"}`, true);
     } else if (ev.slot_available) {
-      appendTelemetryLog(`PHÁT HIỆN SLOT: ${ev.ten_mon} (${ev.ten_lop}) đang có chỗ trống!`, true);
+      appendTelemetryLog(`CÓ CHỖ TRỐNG: ${ev.ten_mon} (${ev.ten_lop}) — ${ev.message || "Đang xử lý"}`, true);
     } else if (ev.type === "checked") {
-      appendTelemetryLog(`Quét ${ev.ten_lop} (${groupText}): Sĩ số ${ev.si_so_dk}/${ev.si_so_max} (${ev.latency_ms} ms)`);
+      appendTelemetryLog(`Kiểm tra ${ev.ten_lop} (${groupText}): Sĩ số ${ev.si_so_dk}/${ev.si_so_max} (${ev.latency_ms} ms)`);
+    } else if (ev.type === "failed") {
+      appendTelemetryLog(`Chưa đăng ký được ${ev.ten_lop} (${groupText}): ${ev.message || "Chưa mở hoặc đã đầy"} (${ev.latency_ms} ms)`, false, true);
     } else if (ev.type === "not_found") {
-      appendTelemetryLog(`Không tìm thấy lớp ${ev.ten_lop} (${ev.latency_ms} ms)`, false, true);
+      appendTelemetryLog(`Chưa mở lớp ${ev.ten_lop} trên cổng đăng ký (${ev.latency_ms} ms)`, false, true);
     } else if (ev.type === "error") {
       appendTelemetryLog(`Lỗi kiểm tra ${ev.ten_lop}: ${ev.message}`, false, true);
     }
@@ -788,19 +817,19 @@ function processSniperEvents(events) {
 }
 
 async function toggleSniperLoop() {
-  const btn = document.getElementById("btn-sniper-start");
+  const btnLabel = document.getElementById("btn-sniper-start-label") || document.getElementById("btn-sniper-start");
   const badge = document.getElementById("sniper-state-badge");
   const sel = document.getElementById("sniper-interval-select");
   const intervalMs = (sel && parseInt(sel.value, 10)) || 1500;
 
   sniperActive = !sniperActive;
   if (sniperActive) {
-    if (btn) btn.textContent = "Dừng tự động ghi danh";
+    if (btnLabel) btnLabel.textContent = "Tạm dừng tự động";
     if (badge) {
-      badge.textContent = "Đang giám sát";
+      badge.textContent = "Đang chạy";
       badge.className = "stamp-badge";
     }
-    appendTelemetryLog(`Đã kích hoạt vòng lặp giám sát tự động (Chu kỳ ${intervalMs} ms)…`);
+    appendTelemetryLog(`Đã bật Tự động đăng ký (Tần suất kiểm tra: ${intervalMs} ms)…`);
     updateSniperTabBadge();
 
     if (hasBridge()) {
@@ -813,19 +842,19 @@ async function toggleSniperLoop() {
             processSniperEvents(res.events);
           }
         } catch (e) {
-          appendTelemetryLog("Lỗi vòng lặp quét: " + String(e), false, true);
+          appendTelemetryLog("Lỗi vòng lặp tự động: " + String(e), false, true);
         } finally {
           sniperPollInFlight = false;
         }
       }, intervalMs);
     }
   } else {
-    if (btn) btn.textContent = "Kích hoạt tự động ghi danh";
+    if (btnLabel) btnLabel.textContent = "Bắt đầu tự động đăng ký";
     if (badge) {
       badge.textContent = "Tạm dừng";
       badge.className = "stamp-badge stamp-badge--neutral";
     }
-    appendTelemetryLog("Đã tạm dừng vòng lặp giám sát tự động.");
+    appendTelemetryLog("Đã tạm dừng Tự động đăng ký.");
     clearInterval(sniperTimer);
     sniperTimer = null;
     updateSniperTabBadge();
@@ -834,37 +863,36 @@ async function toggleSniperLoop() {
 
 async function pingRadarNow() {
   const label = document.getElementById("radar-last-ping");
-  const pingEl = document.getElementById("last-ping-time");
-  if (label) label.textContent = "Đang ping…";
+  const topLabel = document.getElementById("radar-label");
+  if (label) label.textContent = "Đang kiểm tra kết nối…";
   if (!hasBridge()) {
-    if (label) label.textContent = "Mô phỏng 200 OK";
+    if (label) label.textContent = "Đang hoạt động (Mô phỏng)";
     return;
   }
   try {
     const status = await window.pywebview.api.ping_radar(currentSemesterId);
     if (status) {
-      const text = `${status.timestamp}, ${status.code}`;
+      const text = `Cập nhật lúc ${status.timestamp} (${status.code})`;
       if (label) label.textContent = text;
-      if (pingEl) pingEl.textContent = text;
-      appendTelemetryLog(`Radar ping: ${status.message || status.code} (${text})`);
+      if (topLabel) {
+        topLabel.textContent = status.session_expired
+          ? "Phiên hết hạn — Cần đăng nhập lại"
+          : `Đang giữ phiên · ${status.timestamp}`;
+      }
+      appendTelemetryLog(`Kiểm tra phiên: ${status.message || status.code} (${status.timestamp})`, !status.session_expired, Boolean(status.session_expired));
+      if (status.open && sniperTargets.some(t => !t.registered)) {
+        appendTelemetryLog("Cổng đăng ký đang mở! Tự động gửi lệnh đăng ký các lớp trong danh sách chờ…", true);
+        await fireAllTargetsNow();
+      }
     }
   } catch (e) {
     if (label) label.textContent = "Lỗi kết nối";
-    appendTelemetryLog("Radar ping lỗi: " + String(e), false, true);
+    appendTelemetryLog("Lỗi kiểm tra kết nối: " + String(e), false, true);
   }
 }
 
 async function toggleRadar() {
-  const label = document.getElementById("radar-label");
-  radarActive = !radarActive;
-  label.textContent = radarActive ? "Đang duy trì phiên" : "Duy trì phiên nền";
-  if (hasBridge()) {
-    const status = await window.pywebview.api.ping_radar(currentSemesterId);
-    const pingEl = document.getElementById("last-ping-time");
-    if (pingEl && status) {
-      pingEl.textContent = `${status.timestamp}, ${status.code}`;
-    }
-  }
+  await pingRadarNow();
 }
 
 function filterSubjects(query) {
@@ -1085,7 +1113,7 @@ async function submitNativeLogin(ev) {
   const res = await window.pywebview.api.submit_login(user, pass, cap);
   if (res && res.success) {
     closeLoginModal();
-    await initDashboardFromBridge();
+    await initDashboardFromBridge(true);
   } else {
     if (feedback) {
       feedback.textContent = (res && res.message) || "Đăng nhập không thành công. Đang đổi ảnh mã bảo vệ mới…";
@@ -1094,7 +1122,7 @@ async function submitNativeLogin(ev) {
   }
 }
 
-async function initDashboardFromBridge() {
+async function initDashboardFromBridge(skipAuthModal = false) {
   if (!hasBridge()) return;
   try {
     const info = await window.pywebview.api.get_initial_state();
@@ -1127,7 +1155,16 @@ async function initDashboardFromBridge() {
       renderSniperStationTargets();
     }
 
-    if (!info.authenticated) {
+    if (info.authenticated) {
+      radarActive = true;
+      const topLabel = document.getElementById("radar-label");
+      const lastPingEl = document.getElementById("radar-last-ping");
+      const ts = (info.radar_status && info.radar_status.timestamp) || new Date().toTimeString().slice(0, 8);
+      if (topLabel) topLabel.textContent = `Đang giữ phiên · ${ts}`;
+      if (lastPingEl) lastPingEl.textContent = `Đang hoạt động ngầm (Chu kỳ tự động · ${ts})`;
+    }
+
+    if (!info.authenticated && !skipAuthModal) {
       openLoginModal();
     } else {
       await reloadSubjects();
@@ -1159,17 +1196,35 @@ function escapeAttr(str) {
 /* WEEKLY ACADEMIC SCHEDULE (Ported from IUH XemLichHocTuan via /skill:xia)  */
 /* ========================================================================= */
 let currentScheduleMode = "preview"; // "preview" (Official + Watchdog/Preview) or "official"
-let previewSandboxTargets = []; // Multi-subject preview sandbox (replaces same ma_mon, accumulates distinct ma_mon)
-let _returnContext = null; // Stores { maMon, scrollTop } when jumping from Open Subjects to Timetable
 let currentScheduleWeekDate = ""; // pNgayHienTai for GetDanhSachLichTheoTuan ("" = default/semester overview)
 let lastScheduleWeekMeta = { prev_week: "26/10/2026", current_week: "02/11/2026", next_week: "09/11/2026" };
 let _scheduleLoadSeq = 0; // Prevents concurrent loadWeeklySchedule calls from duplicating cards
 function setScheduleMode(mode) {
   currentScheduleMode = mode;
+  currentScheduleWeekDate = "";
   const btnOfficial = document.getElementById("btn-sched-mode-official");
   const btnPreview = document.getElementById("btn-sched-mode-preview");
   if (btnOfficial) btnOfficial.classList.toggle("active", mode === "official");
   if (btnPreview) btnPreview.classList.toggle("active", mode === "preview");
+  const weekNav = document.getElementById("schedule-week-nav");
+  if (weekNav) weekNav.hidden = (mode === "preview");
+  loadWeeklySchedule();
+}
+
+function dmyToIsoDate(dmyStr) {
+  const m = String(dmyStr || "").trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  return m ? `${m[3]}-${m[2]}-${m[1]}` : "";
+}
+
+function isoToDmyDate(isoStr) {
+  const m = String(isoStr || "").trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : "";
+}
+
+function onScheduleDatePick(isoVal) {
+  const dmy = isoToDmyDate(isoVal);
+  if (!dmy) return;
+  currentScheduleWeekDate = dmy;
   loadWeeklySchedule();
 }
 
@@ -1179,92 +1234,12 @@ function navigateScheduleWeek(direction) {
   } else if (direction === "next") {
     currentScheduleWeekDate = lastScheduleWeekMeta.next_week || "";
   } else {
-    currentScheduleWeekDate = "";
+    const now = new Date();
+    const dd = String(now.getDate()).padStart(2, "0");
+    const mm = String(now.getMonth() + 1).padStart(2, "0");
+    const yyyy = now.getFullYear();
+    currentScheduleWeekDate = `${dd}/${mm}/${yyyy}`;
   }
-  loadWeeklySchedule();
-}
-
-function returnToSubjectDrawer() {
-  switchView("open");
-  if (_returnContext) {
-    const targetRow = document.querySelector(`tr[data-mamh="${_returnContext.maMon}"]`);
-    const drawer = document.getElementById("drawer-" + _returnContext.maMon);
-    if (drawer) drawer.hidden = false;
-    if (targetRow) {
-      targetRow.classList.add("ledger-row--selected");
-      targetRow.setAttribute("aria-expanded", "true");
-    }
-    setTimeout(() => {
-      window.scrollTo({ top: _returnContext.scrollTop || 0, behavior: "smooth" });
-    }, 40);
-  }
-}
-
-function previewClassOnSchedule(idDot, maMon, maHp, tenMon, guidLhp, tenLop, nhomTh = null) {
-  const normNhom = (nhomTh !== null && nhomTh !== undefined && String(nhomTh).trim() !== "" && String(nhomTh) !== "null")
-    ? Number(nhomTh)
-    : null;
-  const targetKey = `${guidLhp}_${normNhom !== null ? normNhom : 0}`;
-  const rowMeta = lookupClassRowMeta(maMon, guidLhp, normNhom);
-
-  // Capture return context so user can jump back to the exact subject drawer in 1 click
-  _returnContext = {
-    maMon: String(maMon),
-    scrollTop: window.scrollY || document.documentElement.scrollTop || 0
-  };
-  const btnReturn = document.getElementById("btn-return-to-open");
-  if (btnReturn) {
-    btnReturn.hidden = false;
-    btnReturn.textContent = `Quay lại: ${tenMon}`;
-  }
-
-  const newEntry = {
-    target_key: targetKey,
-    id_dot: String(idDot || currentSemesterId),
-    ma_mon: String(maMon),
-    ma_hp: String(maHp),
-    ten_mon: String(tenMon),
-    guid_lhp: String(guidLhp),
-    ten_lop: String(tenLop),
-    nhom_th: normNhom,
-    loai_dk: currentLoaiDk,
-    ma_mon_cha: rowMeta.ma_mon_cha || "",
-    schedules: rowMeta.schedules || [],
-    lich_lt: rowMeta.lich_lt || "",
-    lich_th: rowMeta.lich_th || "",
-    giang_vien: rowMeta.giang_vien || "",
-    is_temp_preview: true
-  };
-
-  // Replace-per-subject semantics (Kongming recommendation): replace existing preview of same ma_mon, accumulate across different subjects
-  const existingIdx = previewSandboxTargets.findIndex(item => String(item.ma_mon) === String(maMon));
-  if (existingIdx !== -1) {
-    previewSandboxTargets[existingIdx] = newEntry;
-  } else {
-    previewSandboxTargets.push(newEntry);
-  }
-
-  currentScheduleMode = "preview";
-  const btnOfficial = document.getElementById("btn-sched-mode-official");
-  const btnPreview = document.getElementById("btn-sched-mode-preview");
-  if (btnOfficial) btnOfficial.classList.remove("active");
-  if (btnPreview) btnPreview.classList.add("active");
-  switchView("schedule");
-}
-
-async function removePreviewFromSandbox(targetKey) {
-  previewSandboxTargets = previewSandboxTargets.filter(item => item.target_key !== targetKey);
-  const inWatchdog = sniperTargets.some(
-    t => (t.target_key || `${t.guid_lhp}_${t.nhom_th !== null && t.nhom_th !== undefined ? t.nhom_th : 0}`) === targetKey
-  );
-  if (inWatchdog) {
-    await removeTargetFromQueue(targetKey);
-  }
-  loadWeeklySchedule();
-}
-
-function clearTemporaryPreview() {
-  previewSandboxTargets = [];
   loadWeeklySchedule();
 }
 
@@ -1312,93 +1287,19 @@ function parseStringScheduleSlotsForBrowser(p) {
   return out;
 }
 
-function renderSandboxTray(previewClasses, slots) {
-  const tray = document.getElementById("schedule-sandbox-tray");
-  const titleEl = document.getElementById("sandbox-tray-title");
-  const gridEl = document.getElementById("sandbox-tray-cards");
-  if (!tray || !gridEl) return;
-
-  if (currentScheduleMode !== "preview" || !previewClasses || previewClasses.length === 0) {
-    tray.hidden = true;
-    gridEl.innerHTML = "";
-    return;
-  }
-
-  tray.hidden = false;
-  if (titleEl) {
-    titleEl.textContent = `Khay ướm thử & ghép lịch (${previewClasses.length} lớp đang ướm trên Thời khóa biểu)`;
-  }
-
-  gridEl.innerHTML = previewClasses.map(p => {
-    const tKey = p.target_key || `${p.guid_lhp}_${p.nhom_th !== null && p.nhom_th !== undefined ? p.nhom_th : 0}`;
-    const groupText = p.nhom_th !== null && p.nhom_th !== undefined ? `Nhóm TH ${p.nhom_th}` : "Thuần LT";
-    const pSlots = (slots || []).filter(s => s.is_preview && (s.target_key === tKey || s.ten_mon === p.ten_mon));
-    const conflicts = [];
-    pSlots.forEach(s => {
-      if (s.has_conflict && Array.isArray(s.conflict_with)) {
-        s.conflict_with.forEach(cName => {
-          if (!conflicts.includes(cName)) conflicts.push(cName);
-        });
-      }
-    });
-    const hasConflict = conflicts.length > 0;
-    const cardClass = hasConflict ? "sandbox-card sandbox-card--conflict" : "sandbox-card";
-    const statusBadge = hasConflict
-      ? `<span class="stamp-badge stamp-badge--conflict">Trùng tiết: ${escapeHtml(conflicts.join(", "))}</span>`
-      : `<span class="stamp-badge">Khớp lịch (0 trùng)</span>`;
-
-    const schedSummary = [
-      p.lich_lt ? `LT: ${p.lich_lt}` : "",
-      p.lich_th ? `TH: ${p.lich_th}` : ""
-    ].filter(Boolean).join(" | ") || `${pSlots.length} buổi/tuần trên lưới TKB`;
-
-    const inWatchdog = sniperTargets.some(t => (t.target_key || `${t.guid_lhp}_${t.nhom_th || 0}`) === tKey);
-    const nhomArg = (p.nhom_th !== null && p.nhom_th !== undefined) ? Number(p.nhom_th) : "null";
-
-    return `
-      <div class="${cardClass}">
-        <div class="sandbox-card__top">
-          <div>
-            <div class="sandbox-card__title">${escapeHtml(p.ten_mon)}</div>
-            <div class="sandbox-card__meta mono">${escapeHtml(p.ten_lop)} (${escapeHtml(groupText)})</div>
-          </div>
-          ${statusBadge}
-        </div>
-        <div class="sandbox-card__meta">${escapeHtml(schedSummary)}</div>
-        <div class="btn-row-actions">
-          <button type="button" class="btn btn--accent-outline" onclick="triggerDirectRegister('${escapeAttr(p.id_dot || currentSemesterId)}', '${escapeAttr(p.guid_lhp)}', ${nhomArg}, ${p.loai_dk || currentLoaiDk}, '${escapeAttr(p.ma_mon_cha || "")}', '${escapeAttr(p.ten_mon)}', '${escapeAttr(p.ten_lop)}')">Đăng ký ngay</button>
-          ${inWatchdog
-            ? `<span class="stamp-badge stamp-badge--neutral">Đã trong Trạm giám sát</span>`
-            : `<button type="button" class="btn" onclick="addTargetToQueue('${escapeAttr(p.id_dot || currentSemesterId)}', '${escapeAttr(p.ma_mon)}', '${escapeAttr(p.ma_hp)}', '${escapeAttr(p.ten_mon)}', '${escapeAttr(p.guid_lhp)}', '${escapeAttr(p.ten_lop)}', ${nhomArg}, ${p.loai_dk || currentLoaiDk}, '${escapeAttr(p.ma_mon_cha || "")}'); loadWeeklySchedule();">Thêm giám sát</button>`
-          }
-          <button type="button" class="btn" onclick="removePreviewFromSandbox('${escapeAttr(tKey)}')">Bỏ ướm</button>
-        </div>
-      </div>
-    `;
-  }).join("");
-}
-
 async function loadWeeklySchedule() {
   const mySeq = ++_scheduleLoadSeq;
   const days = ["2", "3", "4", "5", "6", "7", "CN"];
   const cas = ["sang", "chieu", "toi"];
+  const isPreviewMode = (currentScheduleMode === "preview");
+  const weekNav = document.getElementById("schedule-week-nav");
+  if (weekNav) weekNav.hidden = isPreviewMode;
+
   let previewClasses = [];
-  if (currentScheduleMode === "preview") {
-    if (sniperTargets && sniperTargets.length > 0) {
-      previewClasses = sniperTargets.filter(t => String(t.id_dot || currentSemesterId) === String(currentSemesterId));
-    }
-    if (previewSandboxTargets && previewSandboxTargets.length > 0) {
-      previewSandboxTargets
-        .filter(t => String(t.id_dot || currentSemesterId) === String(currentSemesterId))
-        .forEach(tempItem => {
-          const exists = previewClasses.some(
-            p => p.guid_lhp === tempItem.guid_lhp && (p.nhom_th ?? null) === (tempItem.nhom_th ?? null)
-          );
-          if (!exists) {
-            previewClasses.push(tempItem);
-          }
-        });
-    }
+  if (isPreviewMode && sniperTargets && sniperTargets.length > 0) {
+    const nonReg = sniperTargets.filter(t => !t.registered);
+    const bySem = nonReg.filter(t => String(t.id_dot || currentSemesterId) === String(currentSemesterId));
+    previewClasses = bySem.length > 0 ? bySem : nonReg;
   }
 
   let scheduleData = null;
@@ -1406,8 +1307,8 @@ async function loadWeeklySchedule() {
     try {
       const res = await window.pywebview.api.get_weekly_schedule(
         currentSemesterId,
-        previewClasses.length > 0 ? previewClasses : null,
-        currentScheduleWeekDate,
+        isPreviewMode ? previewClasses : null,
+        isPreviewMode ? "" : currentScheduleWeekDate,
         0
       );
       if (res && res.success) {
@@ -1467,15 +1368,21 @@ async function loadWeeklySchedule() {
       next_week: scheduleData.next_week || lastScheduleWeekMeta.next_week
     };
   }
+  const datePickerEl = document.getElementById("schedule-date-picker");
+  if (datePickerEl && !isPreviewMode) {
+    const activeDmy = currentScheduleWeekDate || scheduleData.current_week || (scheduleData.day_dates && scheduleData.day_dates["2"]) || "";
+    const isoVal = dmyToIsoDate(activeDmy);
+    if (isoVal) datePickerEl.value = isoVal;
+  }
 
-  const dayDates = scheduleData.day_dates || {};
+  const dayDates = isPreviewMode ? {} : (scheduleData.day_dates || {});
   days.forEach(d => {
     const chipEl = document.getElementById(`sched-date-${d}`);
     if (chipEl) {
       chipEl.textContent = dayDates[d] || "";
+      chipEl.hidden = isPreviewMode || !dayDates[d];
     }
   });
-  // Clear all grid cells immediately before appending so concurrent calls can NEVER stack duplicate cards
   cas.forEach(c => {
     days.forEach(d => {
       const cell = document.getElementById(`sched-slot-${c}-${d}`);
@@ -1488,7 +1395,6 @@ async function loadWeeklySchedule() {
   let previewCount = 0;
   let conflictCount = 0;
 
-  renderSandboxTray(previewClasses, slots);
   slots.forEach(slot => {
     const d = slot.day;
     const c = slot.ca;
@@ -1513,7 +1419,7 @@ async function loadWeeklySchedule() {
 
     let badgesHtml = "";
     if (slot.is_preview) {
-      badgesHtml += '<span class="stamp-badge" style="margin-bottom: 2px;">Dự kiến ghép</span> ';
+      badgesHtml += '<span class="stamp-badge" style="margin-bottom: 2px;">Dự kiến</span> ';
     }
     if (slot.has_conflict) {
       const cw = (slot.conflict_with || []).join(", ");
@@ -1539,13 +1445,15 @@ async function loadWeeklySchedule() {
   if (conflictBanner) {
     if (totalSlots === 0) {
       conflictBanner.hidden = false;
-      conflictBanner.textContent = `Học kỳ hiện tại (Đợt ${currentSemesterId}) chưa có môn đăng ký và chưa có lớp nào trong Khay ướm thử. Hãy bấm "Xem thử TKB" hoặc "Thêm giám sát" ở danh sách lớp mở để ướm thử lịch!`;
+      conflictBanner.textContent = isPreviewMode
+        ? "Chưa có lớp học dự kiến nào trong Danh sách chờ. Hãy bấm \"Thêm vào DS chờ\" ở mục Môn học mở để xem lịch dự kiến trong tuần."
+        : `Không có lịch học chính thức trong tuần đang xem (${scheduleData.current_week || "Hiện tại"}).`;
     } else if (conflictCount > 0) {
       conflictBanner.hidden = false;
-      conflictBanner.innerHTML = `Phát hiện <strong>${conflictCount} buổi học bị trùng tiết</strong> khi ghép lớp dự kiến! Bạn có thể bấm <strong>Quay lại chọn lớp</strong> để chọn nhóm TH khác hoặc bấm <strong>Bỏ ướm</strong> trên thẻ bị trùng.`;
-    } else if (currentScheduleMode === "preview" && previewCount > 0) {
+      conflictBanner.innerHTML = `Phát hiện <strong>${conflictCount} buổi học bị trùng tiết</strong> trong tuần dự kiến! Hãy kiểm tra và điều chỉnh lại nhóm lớp trong Danh sách chờ.`;
+    } else if (isPreviewMode && previewCount > 0) {
       conflictBanner.hidden = false;
-      conflictBanner.innerHTML = `Tất cả <strong>${previewClasses.length} lớp đang ướm thử (${previewCount} buổi học)</strong> đều hoàn toàn khớp với Thời khóa biểu hiện tại (0 trùng tiết). Bạn có thể bấm <strong>Đăng ký ngay</strong> hoặc <strong>Thêm giám sát</strong> ngay trên Khay ướm thử!`;
+      conflictBanner.innerHTML = `Đang hiển thị <strong>${previewClasses.length} lớp dự kiến (${previewCount} buổi/tuần)</strong> từ Danh sách chờ — hoàn toàn khớp lịch (0 trùng tiết).`;
     } else {
       conflictBanner.hidden = true;
       conflictBanner.textContent = "";
@@ -1554,8 +1462,12 @@ async function loadWeeklySchedule() {
 
   const statMeta = document.getElementById("schedule-stat-meta");
   if (statMeta) {
-    const regCount = scheduleData.registered_count !== undefined ? scheduleData.registered_count : 0;
-    statMeta.textContent = `${regCount} môn đã ĐK, ${totalSlots} buổi/tuần${previewCount > 0 ? ` (${previewCount} buổi dự kiến)` : ""}, Đợt ${currentSemesterId}`;
+    if (isPreviewMode) {
+      statMeta.textContent = `${previewClasses.length} lớp dự kiến, ${totalSlots} buổi/tuần`;
+    } else {
+      const regCount = scheduleData.registered_count !== undefined ? scheduleData.registered_count : 0;
+      statMeta.textContent = `${regCount} môn đã ĐK, ${totalSlots} buổi/tuần${scheduleData.current_week ? `, Tuần ${scheduleData.current_week}` : ""}`;
+    }
   }
 }
 
@@ -1569,49 +1481,53 @@ async function loadSettings() {
     if (!res || !res.success || !res.settings) return;
     const s = res.settings;
 
+    const defSem = document.getElementById("cfg-default-semester");
+    const mainSem = document.getElementById("semester-select");
+    if (defSem && mainSem && mainSem.options.length > 0) {
+      defSem.innerHTML = mainSem.innerHTML;
+    }
+    if (defSem && s.id_dot_dang_ky) defSem.value = String(s.id_dot_dang_ky);
+
+    const defLoai = document.getElementById("cfg-default-loaidk");
+    if (defLoai && s.loai_dk) defLoai.value = String(s.loai_dk);
+
     const hbSel = document.getElementById("cfg-heartbeat-interval");
     if (hbSel && s.heartbeat_interval_seconds) hbSel.value = String(s.heartbeat_interval_seconds);
 
     const snipSel = document.getElementById("cfg-sniper-interval");
     if (snipSel && s.sniper_poll_interval_ms) snipSel.value = String(s.sniper_poll_interval_ms);
+  const snipQuickSel = document.getElementById("sniper-interval-select");
+  if (snipQuickSel && s.sniper_poll_interval_ms) snipQuickSel.value = String(s.sniper_poll_interval_ms);
 
     const autoSwap = document.getElementById("cfg-auto-swap");
     if (autoSwap && s.auto_swap_same_course !== undefined) autoSwap.checked = Boolean(s.auto_swap_same_course);
 
     const chimeChk = document.getElementById("cfg-audio-chime");
     if (chimeChk && s.audio_chime_enabled !== undefined) chimeChk.checked = Boolean(s.audio_chime_enabled);
-
-    const tgToken = document.getElementById("cfg-telegram-token");
-    if (tgToken && s.telegram_bot_token !== undefined) tgToken.value = s.telegram_bot_token;
-
-    const tgChat = document.getElementById("cfg-telegram-chatid");
-    if (tgChat && s.telegram_chat_id !== undefined) tgChat.value = s.telegram_chat_id;
-
-    const sessionSummary = document.getElementById("settings-session-summary");
-    if (sessionSummary) {
-      sessionSummary.textContent = `Tài khoản ${s.username || 'Chưa đăng nhập'}, Chu kỳ Heartbeat: ${s.heartbeat_interval_seconds || 62}s`;
-    }
   } catch (e) {
     console.error("Lỗi khi tải cấu hình:", e);
   }
 }
 
 async function saveSettingsFromForm() {
+  const defSemVal = String(document.getElementById("cfg-default-semester")?.value || currentSemesterId);
+  const defLoaiVal = Number(document.getElementById("cfg-default-loaidk")?.value) || currentLoaiDk || 1;
   const hbVal = Number(document.getElementById("cfg-heartbeat-interval")?.value) || 62;
   const snipVal = Number(document.getElementById("cfg-sniper-interval")?.value) || 1500;
   const autoSwap = Boolean(document.getElementById("cfg-auto-swap")?.checked);
   const audioChime = Boolean(document.getElementById("cfg-audio-chime")?.checked);
-  const tgToken = String(document.getElementById("cfg-telegram-token")?.value || "").trim();
-  const tgChat = String(document.getElementById("cfg-telegram-chatid")?.value || "").trim();
 
   const settingsPayload = {
+    id_dot_dang_ky: defSemVal,
+    loai_dk: defLoaiVal,
     heartbeat_interval_seconds: hbVal,
     sniper_poll_interval_ms: snipVal,
     auto_swap_same_course: autoSwap,
-    audio_chime_enabled: audioChime,
-    telegram_bot_token: tgToken,
-    telegram_chat_id: tgChat
+    audio_chime_enabled: audioChime
   };
+
+  const snipQuickSel = document.getElementById("sniper-interval-select");
+  if (snipQuickSel) snipQuickSel.value = String(snipVal);
 
   if (hasBridge()) {
     try {
@@ -1621,14 +1537,16 @@ async function saveSettingsFromForm() {
         statusBadge.textContent = res.success ? "Đã lưu" : "Lỗi lưu";
         setTimeout(() => { statusBadge.textContent = "Đã đồng bộ"; }, 3000);
       }
-      showInlineBanner(res.message || "Cấu hình hệ thống đã được cập nhật thành công.");
+      if (defSemVal !== String(currentSemesterId)) {
+        await onSemesterChange(defSemVal);
+      }
+      showInlineBanner(res.message || "Cài đặt hệ thống đã được cập nhật thành công.");
     } catch (e) {
       console.error(e);
-      showInlineBanner("Lỗi khi lưu cấu hình.");
+      showInlineBanner("Lỗi khi lưu cài đặt.");
     }
   }
 }
-
 /* ========================================================================= */
 /* WEB AUDIO API NOTIFICATION CHIME                                          */
 /* ========================================================================= */
@@ -1688,7 +1606,6 @@ async function logoutSession() {
       }
     }
     clearSubjectCache();
-    previewSandboxTargets = [];
     document.getElementById("profile-name").textContent = "Chưa đăng nhập";
     document.getElementById("profile-mssv").textContent = "";
     document.getElementById("profile-class").textContent = "";

@@ -4,6 +4,7 @@ Verifies crypto, parser, client session, endpoints contract, and services.
 """
 
 import os
+import pathlib
 import json
 import unittest
 from iuh_ledger.core.endpoints import IUHEndpoints
@@ -78,6 +79,34 @@ class TestIUHSniperE2E(unittest.TestCase):
             cookies = client2.get_cookies_dict()
             self.assertEqual(cookies.get("ASC.AUTH"), "TEST_VALUE")
             self.assertEqual(cookies.get("DT_DKHP_Reg"), "UUID_TEST")
+
+            # Verify is_session_valid does not crash with NameError and parses HTML correctly
+            class MockResp:
+                def read(self):
+                    return b"<html><body><table><tr><td>M\xc3\xa3 sinh vi\xc3\xaan</td></tr></table></body></html>"
+            client2.post = lambda url, data=None, timeout=10: MockResp()
+            self.assertTrue(client2.is_session_valid("64"))
+
+            class LoginResp:
+                def read(self):
+                    return b'<form><input name="__RequestVerificationToken"><input name="UserName"></form>'
+                def geturl(self):
+                    return "https://sv.iuh.edu.vn/sinh-vien-dang-nhap.html"
+            client2.post = lambda url, data=None, timeout=10: LoginResp()
+            self.assertFalse(client2.is_session_valid("62"))
+
+            class EntityResp:
+                def read(self):
+                    return "<td>M&#227; l&#7899;p HP</td> Không tìm thấy lớp HP".encode("utf-8")
+            client2.post = lambda url, data=None, timeout=10: EntityResp()
+            self.assertTrue(client2.is_session_valid("64"))
+
+            before = pathlib.Path(tmp_session).read_text(encoding="utf-8")
+            client2.set_cookie("ASC.AUTH", "ANON")
+            client2._persist_rotated_cookies("https://sv.iuh.edu.vn/sinh-vien-dang-nhap.html")
+            self.assertEqual(pathlib.Path(tmp_session).read_text(encoding="utf-8"), before)
+            client2._persist_rotated_cookies("https://sv.iuh.edu.vn/dashboard.html")
+            self.assertIn("ANON", pathlib.Path(tmp_session).read_text(encoding="utf-8"))
         finally:
             if os.path.exists(tmp_session):
                 os.remove(tmp_session)
@@ -265,7 +294,16 @@ class TestIUHSniperE2E(unittest.TestCase):
             self.assertTrue(ev_success["registered"])
             self.assertIn("Ghi danh thành công", ev_success["message"])
 
-            # 4. Clear all targets
+            # 4. Batch fire (`fire_all_targets`) dispatches direct registration without catalog check
+            bridge.add_target("62", "003635", "4297003635", "Kinh tế học", "GUID_B", "DH20B", nhom_th=None, loai_dk=1)
+            fire_res = bridge.fire_all_targets()
+            self.assertTrue(fire_res["success"])
+            self.assertEqual(len(fire_res["events"]), 1)
+            self.assertEqual(fire_res["events"][0]["type"], "success")
+            self.assertEqual(fire_res["events"][0]["target_key"], "GUID_B_0")
+            self.assertTrue(fire_res["events"][0]["registered"])
+
+            # 5. Clear all targets
             clr_res = bridge.clear_targets()
             self.assertEqual(len(clr_res["targets"]), 0)
             self.assertEqual(len(bridge.get_targets()["targets"]), 0)
@@ -293,12 +331,13 @@ class TestIUHSniperE2E(unittest.TestCase):
             up_res = bridge.save_settings({
                 "heartbeat_interval_seconds": 45,
                 "sniper_poll_interval_ms": 1000,
-                "telegram_chat_id": "12345678"
+                "audio_chime_enabled": False
             })
             self.assertTrue(up_res["success"])
             self.assertEqual(up_res["settings"]["heartbeat_interval_seconds"], 45)
             self.assertEqual(bridge.radar.interval_seconds, 45)
-            self.assertEqual(up_res["settings"]["telegram_chat_id"], "12345678")
+            self.assertNotIn("telegram_chat_id", up_res["settings"])
+            self.assertNotIn("telegram_bot_token", up_res["settings"])
 
             # 3. Weekly schedule contract (parsed from captured GetDanhSachLichTheoTuan when offline)
             sched_res = bridge.get_weekly_schedule(id_dot="62")
@@ -386,6 +425,52 @@ class TestIUHSniperE2E(unittest.TestCase):
             self.assertTrue(mon_slot["has_conflict"])
             self.assertIn("Triết học Mác - Lênin", mon_slot["conflict_with"])
             self.assertFalse(thu_slot["has_conflict"])
+
+            # 6. Future semester (e.g. id_dot="65" with 0 registered courses) or explicit date travel (`ngay_hien_tai`)
+            #    must populate from GetDanhSachLichTheoTuan instead of returning 0 slots!
+            class LiveTimetableCatalog:
+                def get_registered_courses(self, id_dot="65"):
+                    return []
+                def get_class_schedule(self, guid, timeout=10):
+                    return []
+                def get_weekly_timetable(self, ngay_hien_tai="", loai_lich=0):
+                    return {
+                        "prev_week": "19/10/2026",
+                        "current_week": ngay_hien_tai or "26/10/2026",
+                        "next_week": "02/11/2026",
+                        "day_dates": {"2": "26/10/2026", "3": "27/10/2026", "4": "28/10/2026", "5": "29/10/2026", "6": "30/10/2026", "7": "31/10/2026", "CN": "01/11/2026"},
+                        "slots": [
+                            {"day": "3", "ca": "sang", "ten_mon": "Kinh tế vĩ mô", "ma_lhp": "42970011", "ten_lop": "DHKT20A", "tiet": "1 - 3", "tiet_start": 1, "tiet_end": 3, "phong": "N4.1", "giang_vien": "TS Lê", "thoi_gian": "27/10/2026", "ghi_chu": "", "loai": "ly_thuyet", "is_preview": False}
+                        ]
+                    }
+            bridge.catalog = LiveTimetableCatalog()
+            bridge._reg_sched_cache.clear()
+            dot65_res = bridge.get_weekly_schedule(id_dot="65", ngay_hien_tai="26/10/2026")
+            self.assertEqual(len(dot65_res["slots"]), 1)
+            self.assertEqual(dot65_res["slots"][0]["ten_mon"], "Kinh tế vĩ mô")
+            self.assertEqual(dot65_res["registered_count"], 1)
+            self.assertEqual(dot65_res["current_week"], "26/10/2026")
+
+            # 7. "Dự kiến" (`preview_classes` non-empty, `ngay_hien_tai == ""`) must render a pure week template
+            #    (`current_week == ""` and `day_dates == {}`), include all LT + TH phases, and display `preview_classes`
+            #    even when the UI dropdown is currently on a different `id_dot` (e.g. `id_dot="59"` while targets have `"65"`).
+            future_preview = [{
+                "id_dot": "65",
+                "guid_lhp": "W3Egb6PLf9Vo57jNRZWGxg",
+                "ten_mon": "Bán lẻ điện tử",
+                "ma_hp": "4297017",
+                "ten_lop": "DHTMDT20B",
+                "nhom_th": 1,
+                "schedules": [
+                    {"stt": "5", "loai_tiet": "LT", "thu_tiet": "LT - Thứ 4 (Tiết 10 -> 12 )", "nhom_th": "", "phong": "N6.9 CLC", "day_nha": "N", "co_so": "CS1", "giang_vien": "ThS Cường", "thoi_gian": "30/12/2026 - 24/03/2027"},
+                    {"stt": "2", "loai_tiet": "TH", "thu_tiet": "TH - Thứ 4 (Tiết 1 -> 3 )", "nhom_th": "1", "phong": "N5.9 CLC", "day_nha": "N", "co_so": "CS1", "giang_vien": "ThS Cường", "thoi_gian": "20/01/2027 - 07/04/2027"}
+                ]
+            }]
+            dot65_prev = bridge.get_weekly_schedule(id_dot="59", preview_classes=future_preview, ngay_hien_tai="")
+            self.assertEqual(dot65_prev["current_week"], "")
+            self.assertEqual(dot65_prev["day_dates"], {})
+            self.assertTrue(all(s["is_preview"] for s in dot65_prev["slots"]))
+            self.assertEqual(len(dot65_prev["slots"]), 2)
         finally:
             if os.path.exists(tmp_cfg):
                 os.remove(tmp_cfg)

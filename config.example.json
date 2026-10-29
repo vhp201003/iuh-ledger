@@ -6,8 +6,6 @@
   "loai_dk": 1,
   "heartbeat_interval_seconds": 62,
   "sniper_poll_interval_ms": 1500,
-  "telegram_bot_token": "",
-  "telegram_chat_id": "",
   "audio_chime_enabled": true,
   "auto_swap_same_course": true
 }

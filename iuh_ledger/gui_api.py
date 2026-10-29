@@ -169,11 +169,25 @@ class BridgeAPI:
             pass
         self.catalog = CatalogService(self.client)
         self.registration = RegistrationService(self.client)
-        self.radar = RadarService(self.client, id_dot=self.config.get("id_dot_dang_ky", "62"))
+        hb_sec = int(self.config.get("heartbeat_interval_seconds", 62) or 62)
+        self.radar = RadarService(self.client, id_dot=self.config.get("id_dot_dang_ky", "62"), interval_seconds=hb_sec)
         self.sniper = SniperService(self.catalog, self.registration, self.config.get("target_classes", []))
         self._login_token: Optional[str] = None
         self._reg_sched_cache: Dict[str, tuple] = {}
         self._config_lock = threading.RLock()
+        self.last_radar_status: Dict[str, Any] = {
+            "open": False,
+            "code": "INIT",
+            "message": "Đang giữ phiên tự động",
+            "timestamp": time.strftime("%H:%M:%S")
+        }
+
+    def _ensure_radar_running(self):
+        if not self.radar.is_running:
+            def _on_ping(status: Dict[str, Any]):
+                self.last_radar_status = status
+            self.radar.start_heartbeat(on_open_callback=lambda s: None, on_ping_callback=_on_ping)
+
     def _load_config(self) -> Dict[str, Any]:
         candidates = [
             os.path.join(os.path.dirname(sys.executable), self.config_path) if getattr(sys, 'frozen', False) else None,
@@ -233,8 +247,12 @@ class BridgeAPI:
         semesters_list = []
 
         if is_valid:
+            self.radar.id_dot = id_dot
+            self._ensure_radar_running()
             try:
                 prof = self.catalog.get_student_profile(id_dot=id_dot)
+                if not prof and id_dot != "62":
+                    prof = self.catalog.get_student_profile(id_dot="62")
                 if prof:
                     profile_dict = asdict(prof)
             except Exception:
@@ -252,7 +270,9 @@ class BridgeAPI:
             "loai_dk": loai_dk,
             "profile": profile_dict,
             "semesters": semesters_list,
-            "targets": self.get_targets()["targets"]
+            "targets": self.get_targets()["targets"],
+            "radar_active": self.radar.is_running,
+            "radar_status": self.last_radar_status
         }
 
     def get_open_subjects(self, id_dot: str = "62", loai_dk: int = 1) -> Dict[str, Any]:
@@ -533,10 +553,53 @@ class BridgeAPI:
             self._save_config()
         return {"success": True, "events": events}
 
+    def fire_all_targets(self) -> Dict[str, Any]:
+        """
+        Immediately dispatches registration requests in parallel for all pending targets in the queue.
+        """
+        events = []
+        any_registered = False
+
+        def on_ev(ev_type: str, data: Dict[str, Any]):
+            nonlocal any_registered
+            t_obj = data.get("target", {})
+            res_obj = data.get("result") or {}
+            norm_nhom = extract_nhom_th_int(t_obj.get("nhom_th"))
+            guid = t_obj.get("guid_lhp", "")
+            t_key = t_obj.get("target_key") or f"{guid}_{norm_nhom if norm_nhom is not None else 0}"
+            is_reg = bool(t_obj.get("registered", False))
+            if is_reg:
+                any_registered = True
+
+            events.append({
+                "type": ev_type,
+                "target_key": t_key,
+                "guid_lhp": guid,
+                "ten_mon": t_obj.get("ten_mon", t_obj.get("ma_mon", "")),
+                "ten_lop": t_obj.get("ten_lop", guid),
+                "nhom_th": norm_nhom,
+                "loai_dk": int(t_obj.get("loai_dk", 1)),
+                "si_so_dk": None,
+                "si_so_max": None,
+                "slot_available": bool(data.get("slot_available", False)),
+                "latency_ms": data.get("latency_ms", 0),
+                "registered": is_reg,
+                "message": res_obj.get("message") or data.get("error") or "",
+                "timestamp": time.strftime("%H:%M:%S")
+            })
+
+        self.sniper.fire_all_once(on_event=on_ev)
+        if any_registered:
+            self._reg_sched_cache.clear()
+            self._save_config()
+        return {"success": True, "events": events}
+
     def ping_radar(self, id_dot: str = "62") -> Dict[str, Any]:
         self.radar.id_dot = str(id_dot)
-        return self.radar.check_status()
-
+        self._ensure_radar_running()
+        status = self.radar.check_status()
+        self.last_radar_status = status
+        return status
     def prepare_login_challenge(self) -> Dict[str, Any]:
         """
         Downloads fresh CSRF token and Captcha image, returning Base64 data URI for inline GUI rendering.
@@ -589,14 +652,14 @@ class BridgeAPI:
             self.client.post(IUHEndpoints.LOGIN_PAGE, data=post_data, follow_redirects=True)
             cookies = self.client.get_cookies_dict()
 
-            if "ASC.AUTH" in cookies or self.client.is_session_valid():
+            if "ASC.AUTH" in cookies or self.client.is_session_valid(id_dot=str(self.config.get("id_dot_dang_ky", "62"))):
                 self.client.save_cookies()
                 self._reg_sched_cache.clear()
                 self.config["username"] = username
                 self.config["password"] = password
                 self._save_config()
+                self._ensure_radar_running()
                 return {"success": True, "message": "Đăng nhập thành công"}
-
             return {"success": False, "message": "Mã bảo vệ hoặc thông tin tài khoản không khớp."}
         except Exception as e:
             return {"success": False, "message": str(e)}
@@ -627,8 +690,6 @@ class BridgeAPI:
             "settings": {
                 "heartbeat_interval_seconds": int(self.config.get("heartbeat_interval_seconds", 62)),
                 "sniper_poll_interval_ms": int(self.config.get("sniper_poll_interval_ms", 1500)),
-                "telegram_bot_token": str(self.config.get("telegram_bot_token", "")),
-                "telegram_chat_id": str(self.config.get("telegram_chat_id", "")),
                 "audio_chime_enabled": bool(self.config.get("audio_chime_enabled", True)),
                 "auto_swap_same_course": bool(self.config.get("auto_swap_same_course", True)),
                 "username": str(self.config.get("username", "")),
@@ -643,8 +704,8 @@ class BridgeAPI:
         """
         if not isinstance(settings, dict):
             return {"success": False, "message": "Cấu hình không hợp lệ."}
-        for k in ["heartbeat_interval_seconds", "sniper_poll_interval_ms", "telegram_bot_token",
-                  "telegram_chat_id", "audio_chime_enabled", "auto_swap_same_course",
+        for k in ["heartbeat_interval_seconds", "sniper_poll_interval_ms",
+                  "audio_chime_enabled", "auto_swap_same_course",
                   "id_dot_dang_ky", "loai_dk"]:
             if k in settings:
                 self.config[k] = settings[k]
@@ -706,10 +767,20 @@ class BridgeAPI:
         has_live_session = False
         registered_count = 0
         week_info = self._compute_week_dates(ngay_hien_tai)
+        target_dot = str(id_dot)
+        if preview_classes:
+            has_exact_dot = any(
+                not p.get("id_dot") or str(p.get("id_dot")) == str(id_dot)
+                for p in preview_classes
+            )
+            if not has_exact_dot:
+                first_p_dot = next((str(p.get("id_dot")) for p in preview_classes if p.get("id_dot")), None)
+                if first_p_dot:
+                    target_dot = first_p_dot
 
         # 1. Fetch semester registered courses & their schedules (with in-memory caching to avoid 429)
         try:
-            cache_key = str(id_dot)
+            cache_key = target_dot
             cached_entry = self._reg_sched_cache.get(cache_key)
             now_ts = time.time()
             if cached_entry and (now_ts - cached_entry[0] < 120):
@@ -717,13 +788,12 @@ class BridgeAPI:
                 has_live_session = True
                 registered_count = len(reg_res)
             else:
-                reg_res = self.catalog.get_registered_courses(id_dot=str(id_dot))
+                reg_res = self.catalog.get_registered_courses(id_dot=target_dot)
                 scheds_by_guid: Dict[str, List[Any]] = {}
                 if reg_res is not None:
                     if len(reg_res) > 0 or self.client.is_session_valid():
                         has_live_session = True
                     registered_count = len(reg_res)
-
                 def _fetch_reg_sched(c_item):
                     g_lhp = getattr(c_item, "guid_lhp", "") or getattr(c_item, "guid", "")
                     if not g_lhp:
@@ -742,8 +812,9 @@ class BridgeAPI:
                         self._reg_sched_cache[cache_key] = (now_ts, reg_res, scheds_by_guid)
 
             if reg_res:
-                # If user hasn't manually picked a week date, check if current week falls outside the semester's date range
-                if not ngay_hien_tai:
+                # Only jump to the semester's start week when the user explicitly navigated to a date or when
+                # `GetDanhSachLichTheoTuan` is not available (so default "Hiện tại" in Lớp học hiện tại shows today's real week).
+                if not ngay_hien_tai and not hasattr(self.catalog, "get_weekly_timetable"):
                     all_start_dates = []
                     for g_lhp, scheds in scheds_by_guid.items():
                         for s in scheds:
@@ -756,9 +827,7 @@ class BridgeAPI:
                         curr_mon = week_info["day_dt_map"]["2"]
                         curr_sun = week_info["day_dt_map"]["CN"]
                         if curr_sun < sem_min or curr_mon > sem_max:
-                            # Jump to the first active week of that semester so the user sees its real weekly schedule
                             week_info = self._compute_week_dates(sem_min.strftime("%d/%m/%Y"))
-
                 for c_item in reg_res:
                     g_lhp = getattr(c_item, "guid_lhp", "") or getattr(c_item, "guid", "")
                     scheds = scheds_by_guid.get(g_lhp, [])
@@ -788,9 +857,14 @@ class BridgeAPI:
         except Exception:
             pass
 
-        # 2. Supplement or populate from POST /SinhVien/GetDanhSachLichTheoTuan (includes exam cards like Lịch thi)
+        # 2. Populate or supplement from POST /SinhVien/GetDanhSachLichTheoTuan ONLY when:
+        #    - we are in official schedule mode (`not preview_classes`), OR
+        #    - the current semester actually has registered courses (`registered_count > 0`) to merge exam cards (`lich_thi`), OR
+        #    - the user explicitly picked a calendar date (`bool(ngay_hien_tai)`).
         try:
-            if hasattr(self.catalog, "get_weekly_timetable") and (not raw_slots or week_info["current_week"] == self._compute_week_dates("")["current_week"]):
+            if hasattr(self.catalog, "get_weekly_timetable") and (
+                not preview_classes or registered_count > 0 or bool(ngay_hien_tai)
+            ):
                 tt_res = self.catalog.get_weekly_timetable(ngay_hien_tai=week_info["current_week"], loai_lich=loai_lich)
                 if tt_res:
                     for k in ("prev_week", "current_week", "next_week", "day_dates"):
@@ -810,7 +884,6 @@ class BridgeAPI:
                             if not registered_count:
                                 registered_count = len({s.get("ma_lhp") or s.get("ten_mon") for s in raw_slots})
                         else:
-                            # Merge any exam slots (lich_thi) from GetDanhSachLichTheoTuan not present in GetChiTietLichHoc
                             for ts in tt_res["slots"]:
                                 if ts.get("loai") == "lich_thi":
                                     raw_slots.append(ts)
@@ -818,7 +891,7 @@ class BridgeAPI:
             pass
 
         # 3. Offline fallback: parse directly from captured GetDanhSachLichTheoTuan HTML response (when not authenticated)
-        if not raw_slots and not has_live_session:
+        if not raw_slots and not has_live_session and (not preview_classes or target_dot == "62"):
             cap_tt = self._load_captured_weekly_timetable()
             if cap_tt:
                 raw_slots = list(cap_tt.get("slots", []))
@@ -835,12 +908,17 @@ class BridgeAPI:
                 if not registered_count:
                     registered_count = len({s.get("ma_lhp") or s.get("ten_mon") for s in raw_slots})
 
-        # 4. Append preview classes if provided (from Schedule Sandbox or Watchdog queue)
+        # 4. Append preview classes if provided (from Watchdog queue):
+        #    In `Dự kiến` mode (`ngay_hien_tai == ""`), render a pure weekly template (all LT + TH slots in the week,
+        #    no specific calendar date filtering). If targets in `preview_classes` belong to another `id_dot` when the
+        #    current `id_dot` has no matching targets, fall back to displaying all `preview_classes`.
+        is_pure_preview = (preview_classes is not None and not ngay_hien_tai)
         if preview_classes:
-            for p in preview_classes:
-                p_dot = str(p.get("id_dot", id_dot))
-                if p_dot and p_dot != str(id_dot):
-                    continue
+            active_previews = [
+                p for p in preview_classes
+                if not p.get("id_dot") or str(p.get("id_dot")) == target_dot
+            ] or list(preview_classes)
+            for p in active_previews:
                 guid = p.get("guid_lhp", "")
                 ten_mon = p.get("ten_mon", "")
                 ma_lhp = p.get("ma_lhp", "") or p.get("ma_hp", "")
@@ -861,17 +939,6 @@ class BridgeAPI:
                 if not p_scheds:
                     p_scheds = self._synthesize_schedules_from_strings(p)
 
-                # Check if any preview row has dates overlapping the displayed week
-                week_mon = week_info["day_dt_map"].get("2")
-                week_sun = week_info["day_dt_map"].get("CN")
-                has_overlapping_preview_dates = False
-                if week_mon and week_sun:
-                    for ps in p_scheds:
-                        st_d, en_d = self._parse_date_range(getattr(ps, "thoi_gian", ""))
-                        if st_d and en_d and max(st_d, week_mon) <= min(en_d, week_sun):
-                            has_overlapping_preview_dates = True
-                            break
-
                 for ps in p_scheds:
                     s_nhom = extract_nhom_th_int(getattr(ps, "nhom_th", None))
                     if s_nhom is not None and p_nhom is not None and s_nhom != p_nhom:
@@ -886,11 +953,6 @@ class BridgeAPI:
                     )
                     if not parsed:
                         continue
-                    if has_overlapping_preview_dates:
-                        col_dt = week_info["day_dt_map"].get(parsed.get("day", ""))
-                        st_d, en_d = self._parse_date_range(parsed.get("thoi_gian", ""))
-                        if col_dt and st_d and en_d and not (st_d <= col_dt <= en_d):
-                            continue
                     parsed["target_key"] = p.get("target_key") or f"{guid}_{p_nhom if p_nhom is not None else 0}"
                     raw_slots.append(parsed)
 
@@ -903,10 +965,10 @@ class BridgeAPI:
             "has_live_session": has_live_session,
             "registered_count": registered_count,
             "conflict_count": conflict_count,
-            "prev_week": week_info.get("prev_week", ""),
-            "current_week": week_info.get("current_week", ""),
-            "next_week": week_info.get("next_week", ""),
-            "day_dates": week_info.get("day_dates", {}),
+            "prev_week": "" if is_pure_preview else week_info.get("prev_week", ""),
+            "current_week": "" if is_pure_preview else week_info.get("current_week", ""),
+            "next_week": "" if is_pure_preview else week_info.get("next_week", ""),
+            "day_dates": {} if is_pure_preview else week_info.get("day_dates", {}),
             "slots": slots
         }
     @staticmethod

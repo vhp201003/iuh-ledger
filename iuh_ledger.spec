@@ -55,7 +55,6 @@ runtime_dll_names = [
     'vcruntime140.dll',
     'vcruntime140_1.dll',
     'msvcp140.dll',
-    'ucrtbase.dll',
     'concrt140.dll',
 ]
 for dll_name in runtime_dll_names:

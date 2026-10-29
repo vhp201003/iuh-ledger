@@ -37,10 +37,21 @@ class RadarService:
                 timeout=10
             )
             raw = res.read().decode("utf-8", errors="replace")
+            geturl = getattr(res, "geturl", None)
+            redirected = bool(geturl and "sinh-vien-dang-nhap" in str(geturl()).lower())
             try:
                 data = json.loads(raw)
             except Exception:
+                if redirected or "__RequestVerificationToken" in raw:
+                    return {
+                        "open": False,
+                        "code": "AUTH_EXPIRED",
+                        "session_expired": True,
+                        "message": "Phiên đăng nhập đã bị máy chủ ngắt. Vui lòng xác thực lại!",
+                        "timestamp": time.strftime("%H:%M:%S")
+                    }
                 data = {"Code": "99", "Message": raw}
+            self._keep_alive_cam_thi()
 
             code = str(data.get("Code", "99"))
             is_open = (code == "00")
@@ -59,6 +70,19 @@ class RadarService:
                 "message": f"Lỗi ping radar: {str(e)}",
                 "timestamp": time.strftime("%H:%M:%S")
             }
+
+    def _keep_alive_cam_thi(self):
+        """Pings /SinhVien/GetDsCamThi so the /SinhVien session cookies slide and rotate too."""
+        try:
+            res = self.client.post(
+                IUHEndpoints.GET_DS_CAM_THI,
+                data={"pNgayHienTai": time.strftime("%d/%m/%Y"), "pLoaiLich": "0"},
+                headers={"Accept": "application/json, text/javascript, */*; q=0.01", "X-Requested-With": "XMLHttpRequest"},
+                timeout=10
+            )
+            res.read()
+        except Exception:
+            pass
 
     def _loop(self, on_open: Callable, on_ping: Optional[Callable] = None):
         while self.is_running:

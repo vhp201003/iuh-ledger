@@ -5,9 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Sổ cái đăng ký học phần IUH</title>
   <meta name="description" content="Trạm điều phối đăng ký học phần, tra cứu lịch giảng viên và canh lớp tự động trên cổng thông tin sinh viên IUH.">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Instrument+Sans:wght@400;500&family=Schibsted+Grotesk:wght@700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./app.css">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 240'%3E%3Crect x='16' y='16' width='208' height='208' rx='54' fill='%23186e55'/%3E%3Ccircle cx='120' cy='120' r='78' stroke='white' stroke-width='4' stroke-dasharray='5 7' fill='none'/%3E%3Ccircle cx='120' cy='120' r='32' stroke='white' stroke-width='5' fill='none'/%3E%3Ccircle cx='120' cy='120' r='10' fill='%232eb68a'/%3E%3C/svg%3E">
 </head>
@@ -43,21 +40,38 @@
           <span>IUH Ledger</span>
         </a>
         <nav class="nav-tabs" aria-label="Điều hướng học phần">
-          <button type="button" class="tab-btn" id="tab-open" aria-selected="true" onclick="switchView('open')">Học phần kế hoạch</button>
-          <button type="button" class="tab-btn" id="tab-registered" aria-selected="false" onclick="switchView('registered')">Học phần đã đăng ký</button>
-          <button type="button" class="tab-btn" id="tab-schedule" aria-selected="false" onclick="switchView('schedule')">Thời khóa biểu tuần</button>
-          <button type="button" class="tab-btn" id="tab-sniper" aria-selected="false" onclick="switchView('sniper')">Trạm giám sát (0)</button>
-          <button type="button" class="tab-btn" id="tab-settings" aria-selected="false" onclick="switchView('settings')">Cấu hình &amp; Dịch vụ</button>
+          <button type="button" class="tab-btn" id="tab-open" aria-selected="true" onclick="switchView('open')">
+            <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg>
+            <span>Môn học mở</span>
+          </button>
+          <button type="button" class="tab-btn" id="tab-registered" aria-selected="false" onclick="switchView('registered')">
+            <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+            <span>Môn đã đăng ký</span>
+          </button>
+          <button type="button" class="tab-btn" id="tab-schedule" aria-selected="false" onclick="switchView('schedule')">
+            <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            <span>Thời khóa biểu</span>
+          </button>
+          <button type="button" class="tab-btn" id="tab-sniper" aria-selected="false" onclick="switchView('sniper')">
+            <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+            <span id="tab-sniper-label">Danh sách chờ (0)</span>
+          </button>
+          <button type="button" class="tab-btn" id="tab-settings" aria-selected="false" onclick="switchView('settings')">
+            <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+            <span>Cài đặt</span>
+          </button>
         </nav>
       </div>
 
       <div class="topbar__right">
-        <button type="button" class="btn" id="btn-radar-toggle" onclick="toggleRadar()">
-          <span id="radar-label">Duy trì phiên nền</span>
+        <button type="button" class="btn" id="btn-radar-toggle" onclick="pingRadarNow()" title="Nhấn để kiểm tra kết nối cổng trường ngay">
+          <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          <span id="radar-label">Đang giữ phiên tự động</span>
         </button>
 
         <button type="button" class="btn btn--primary" id="btn-auth-modal" onclick="openLoginModal()">
-          Xác thực tài khoản
+          <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <span>Tài khoản</span>
         </button>
       </div>
     </header>
@@ -126,7 +140,10 @@
             </label>
           </div>
 
-          <button type="button" class="btn" onclick="reloadSubjects()">Làm mới danh mục</button>
+          <button type="button" class="btn" onclick="reloadSubjects()">
+            <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+            <span>Làm mới danh mục</span>
+          </button>
         </div>
 
         <div id="inline-action-banner" class="inline-banner" role="status" aria-live="polite" hidden></div>
@@ -212,8 +229,7 @@
                           <td>
                             <div class="btn-row-actions">
                               <button type="button" class="btn btn--accent-outline" onclick="triggerDirectRegister('62', 'CqLpKkViKTvbXLsCooUfPg', 1, 1, '', 'Âm nhạc, Nhạc lý và Guitar căn bản', 'DHSH20A_TCTA')">Đăng ký ngay</button>
-                              <button type="button" class="btn" onclick="addTargetToQueue('62', '003634', '4297003634', 'Âm nhạc, Nhạc lý và Guitar căn bản', 'CqLpKkViKTvbXLsCooUfPg', 'DHSH20A_TCTA', 1, 1, '')">Thêm giám sát</button>
-                              <button type="button" class="btn" onclick="previewClassOnSchedule('62', '003634', '429700363401', 'Âm nhạc, Nhạc lý và Guitar căn bản', 'CqLpKkViKTvbXLsCooUfPg', 'DHSH20A_TCTA', 1)">Xem thử TKB</button>
+                              <button type="button" class="btn" onclick="addTargetToQueue('62', '003634', '4297003634', 'Âm nhạc, Nhạc lý và Guitar căn bản', 'CqLpKkViKTvbXLsCooUfPg', 'DHSH20A_TCTA', 1, 1, '')">Thêm vào DS chờ</button>
                             </div>
                           </td>
                         </tr>
@@ -240,8 +256,7 @@
                           <td>
                             <div class="btn-row-actions">
                               <button type="button" class="btn btn--accent-outline" disabled>Đăng ký ngay</button>
-                              <button type="button" class="btn" onclick="addTargetToQueue('62', '003634', '4297003634', 'Âm nhạc, Nhạc lý và Guitar căn bản', 'CqLpKkViKTvbXLsCooUfPg', 'DHSH20A_TCTA', 2, 1, '')">Tự động chờ lớp</button>
-                              <button type="button" class="btn" onclick="previewClassOnSchedule('62', '003634', '429700363401', 'Âm nhạc, Nhạc lý và Guitar căn bản', 'CqLpKkViKTvbXLsCooUfPg', 'DHSH20A_TCTA', 2)">Xem thử TKB</button>
+                              <button type="button" class="btn" onclick="addTargetToQueue('62', '003634', '4297003634', 'Âm nhạc, Nhạc lý và Guitar căn bản', 'CqLpKkViKTvbXLsCooUfPg', 'DHSH20A_TCTA', 2, 1, '')">Thêm vào DS chờ</button>
                             </div>
                           </td>
                         </tr>
@@ -267,8 +282,7 @@
                           <td>
                             <div class="btn-row-actions">
                               <button type="button" class="btn btn--accent-outline" disabled>Đăng ký ngay</button>
-                              <button type="button" class="btn" onclick="addTargetToQueue('62', '003634', '4297003634', 'Âm nhạc, Nhạc lý và Guitar căn bản', 'sLeefKjYzKhtMOL0u6nFtg', 'DHSH20B_TCTA', null, 1, '')">Tự động chờ lớp</button>
-                              <button type="button" class="btn" onclick="previewClassOnSchedule('62', '003634', '429700363402', 'Âm nhạc, Nhạc lý và Guitar căn bản', 'sLeefKjYzKhtMOL0u6nFtg', 'DHSH20B_TCTA', null)">Xem thử TKB</button>
+                              <button type="button" class="btn" onclick="addTargetToQueue('62', '003634', '4297003634', 'Âm nhạc, Nhạc lý và Guitar căn bản', 'sLeefKjYzKhtMOL0u6nFtg', 'DHSH20B_TCTA', null, 1, '')">Thêm vào DS chờ</button>
                             </div>
                           </td>
                         </tr>
@@ -381,38 +395,23 @@
           <div class="schedule-header-controls">
             <h2 id="heading-schedule">Thời khóa biểu theo tuần</h2>
             <div class="btn-group-segmented" role="group" aria-label="Chế độ hiển thị thời khóa biểu">
-              <button type="button" class="btn btn-segmented active" id="btn-sched-mode-preview" onclick="setScheduleMode('preview')">Tổng quan ghép lớp (Đã ĐK + Dự kiến)</button>
-              <button type="button" class="btn btn-segmented" id="btn-sched-mode-official" onclick="setScheduleMode('official')">Chỉ lớp đã đăng ký</button>
+              <button type="button" class="btn btn-segmented active" id="btn-sched-mode-preview" onclick="setScheduleMode('preview')">Dự kiến</button>
+              <button type="button" class="btn btn-segmented" id="btn-sched-mode-official" onclick="setScheduleMode('official')">Lớp học hiện tại</button>
             </div>
-            <div class="btn-row-actions" aria-label="Điều hướng tuần học">
+            <div class="btn-row-actions" id="schedule-week-nav" aria-label="Điều hướng tuần học" hidden>
+              <input type="date" id="schedule-date-picker" class="field-input schedule-date-input mono" aria-label="Chọn ngày xem thời khóa biểu" onchange="onScheduleDatePick(this.value)">
               <button type="button" class="btn" id="btn-week-prev" onclick="navigateScheduleWeek('prev')">Tuần trước</button>
               <button type="button" class="btn" id="btn-week-current" onclick="navigateScheduleWeek('current')">Hiện tại</button>
               <button type="button" class="btn" id="btn-week-next" onclick="navigateScheduleWeek('next')">Tuần kế</button>
             </div>
-            <button type="button" class="btn" id="btn-return-to-open" onclick="returnToSubjectDrawer()" hidden>Quay lại chọn lớp</button>
           </div>
           <span class="mono" id="schedule-stat-meta">Đang đồng bộ lịch học…</span>
         </div>
 
-        <!-- INTERACTIVE SCHEDULE SANDBOX TRAY -->
-        <div id="schedule-sandbox-tray" class="sandbox-tray" aria-label="Khay ướm thử và ghép lịch" hidden>
-          <div class="sandbox-tray__header">
-            <span class="sandbox-tray__title" id="sandbox-tray-title">Khay ướm thử &amp; ghép lịch (0 lớp)</span>
-            <div class="btn-row-actions">
-              <button type="button" class="btn" onclick="switchView('open')">Chọn thêm lớp mở</button>
-              <button type="button" class="btn" onclick="clearTemporaryPreview()">Xóa khay ướm thử</button>
-            </div>
-          </div>
-          <div class="sandbox-tray__grid" id="sandbox-tray-cards"></div>
-        </div>
-
         <div id="schedule-conflict-banner" class="inline-banner" role="status" aria-live="polite" hidden></div>
         <div class="schedule-legend" aria-label="Chú giải phân loại lịch học">
-          <div class="legend-item"><span class="legend-pill legend-pill--theory"></span><span>Lịch học lý thuyết</span></div>
-          <div class="legend-item"><span class="legend-pill legend-pill--practice"></span><span>Lịch học thực hành</span></div>
-          <div class="legend-item"><span class="legend-pill legend-pill--online"></span><span>Lịch học trực tuyến</span></div>
-          <div class="legend-item"><span class="legend-pill legend-pill--exam"></span><span>Lịch thi</span></div>
-          <div class="legend-item"><span class="legend-pill legend-pill--preview"></span><span>Lớp dự kiến (Trạm giám sát / Xem thử)</span></div>
+          <div class="legend-item"><span class="legend-pill legend-pill--theory"></span><span>Lớp học hiện tại</span></div>
+          <div class="legend-item"><span class="legend-pill legend-pill--preview"></span><span>Dự kiến</span></div>
           <div class="legend-item"><span class="legend-pill legend-pill--conflict"></span><span>Trùng tiết học</span></div>
         </div>
 
@@ -483,9 +482,16 @@
       <!-- TAB 3: SNIPER & RADAR COMMAND CENTER -->
       <section class="ledger-section" id="view-sniper" aria-labelledby="heading-sniper-station" hidden>
         <div class="section-header">
-          <h2 id="heading-sniper-station">Hàng đợi mục tiêu giám sát (0)</h2>
+          <h2 id="heading-sniper-station">Danh sách lớp chờ đăng ký (0)</h2>
           <div class="btn-row-actions">
-            <button type="button" class="btn" onclick="clearAllTargets()">Xóa toàn bộ</button>
+            <button type="button" class="btn btn--accent-outline" id="btn-fire-all" onclick="fireAllTargetsNow()">
+              <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+              <span>Đăng ký tất cả ngay</span>
+            </button>
+            <button type="button" class="btn" onclick="clearAllTargets()">
+              <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              <span>Xóa toàn bộ</span>
+            </button>
           </div>
         </div>
 
@@ -493,19 +499,19 @@
           <!-- LEFT COLUMN: TARGETS TABLE OR EMPTY STATE -->
           <div class="station-main">
             <div class="state-panel" id="sniper-empty-state">
-              <h2>Hàng đợi giám sát chưa có mục tiêu</h2>
-              <p>Chuyển sang thẻ Học phần kế hoạch và chọn Thêm vào hàng đợi giám sát đối với lớp học phần cần theo dõi.</p>
-              <button type="button" class="btn" onclick="switchView('open')">Xem học phần kế hoạch</button>
+              <h2>Danh sách chờ chưa có lớp học phần</h2>
+              <p>Chuyển sang thẻ Môn học mở và chọn “Thêm vào DS chờ” ở những lớp bạn muốn chuẩn bị đăng ký.</p>
+              <button type="button" class="btn" onclick="switchView('open')">Xem môn học mở</button>
             </div>
 
-            <table class="ledger-table" id="sniper-targets-table" aria-label="Bảng mục tiêu giám sát đăng ký" hidden>
+            <table class="ledger-table" id="sniper-targets-table" aria-label="Bảng danh sách lớp chờ đăng ký" hidden>
               <thead>
                 <tr>
                   <th scope="col">Môn học &amp; Lớp</th>
                   <th scope="col">Nhóm TH</th>
                   <th scope="col">Loại học</th>
-                  <th scope="col">Sĩ số &amp; Chỗ</th>
-                  <th scope="col">Độ trễ</th>
+                  <th scope="col">Sĩ số &amp; Trạng thái</th>
+                  <th scope="col">Phản hồi</th>
                   <th scope="col">Thao tác</th>
                 </tr>
               </thead>
@@ -517,46 +523,48 @@
           <!-- RIGHT COLUMN: CONTROLS & LIVE TELEMETRY CONSOLE -->
           <aside class="plastic-tray" aria-labelledby="heading-engine-controls">
             <div class="section-header">
-              <h2 id="heading-engine-controls">Động cơ giám sát &amp; Duy trì phiên</h2>
+              <h2 id="heading-engine-controls">Tự động đăng ký</h2>
               <span class="stamp-badge" id="sniper-state-badge">Sẵn sàng</span>
             </div>
 
             <div class="control-group">
-              <label for="sniper-interval-select" class="control-label">Chu kỳ thăm dò</label>
+              <label for="sniper-interval-select" class="control-label">Tần suất kiểm tra</label>
               <select id="sniper-interval-select" class="field-select">
-                <option value="500">500 ms (Tối đa tốc độ - Giờ G)</option>
-                <option value="1000">1000 ms (Nhanh)</option>
-                <option value="1500" selected>1500 ms (Khuyên dùng)</option>
-                <option value="3000">3000 ms (An toàn)</option>
+                <option value="500">0.5 giây (Tốc độ cao - Giờ G)</option>
+                <option value="1000">1.0 giây (Nhanh)</option>
+                <option value="1500" selected>1.5 giây (Khuyên dùng)</option>
+                <option value="3000">3.0 giây (Tiêu chuẩn)</option>
               </select>
             </div>
 
             <div class="btn-row-actions">
               <button type="button" class="btn btn--accent-outline" id="btn-sniper-start" onclick="toggleSniperLoop()">
-                Kích hoạt tự động ghi danh
+                <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                <span id="btn-sniper-start-label">Bắt đầu tự động đăng ký</span>
               </button>
               <button type="button" class="btn" onclick="runSniperSweepOnce()">
-                Kiểm tra chỗ trống (1 lượt)
+                <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                <span>Kiểm tra sĩ số ngay</span>
               </button>
             </div>
 
             <div class="ticket-stub" id="radar-control-card">
               <div>
-                <strong>Duy trì phiên nền 24/7</strong>
-                <div class="schedule-meta" id="radar-last-ping">09:38, 200 OK</div>
+                <strong>Giữ phiên tự động (Mặc định bật)</strong>
+                <div class="schedule-meta" id="radar-last-ping">Đang hoạt động ngầm</div>
               </div>
-              <button type="button" class="btn" onclick="pingRadarNow()">Ping ngay</button>
+              <button type="button" class="btn" onclick="pingRadarNow()">Kiểm tra kết nối</button>
             </div>
 
             <div class="section-header" style="margin-top: var(--space-xs);">
-              <span class="control-label">Nhật ký sự kiện thời gian thực</span>
+              <span class="control-label">Nhật ký hoạt động</span>
               <button type="button" class="btn" style="height: 28px; padding-inline: var(--space-xs); font-size: var(--text-xs);" onclick="clearTelemetryLog()">Xóa nhật ký</button>
             </div>
 
             <div class="telemetry-box" id="sniper-telemetry-log" role="log" aria-live="polite">
               <div class="telemetry-entry">
-                <span class="mono">[Khởi động]</span>
-                <span>Trạm giám sát đăng ký sẵn sàng kết nối.</span>
+                <span class="mono">[Hệ thống]</span>
+                <span>Giữ phiên tự động đang bật. Danh sách chờ sẵn sàng.</span>
               </div>
             </div>
           </aside>
@@ -566,88 +574,103 @@
       <!-- TAB 5: SYSTEM & BACKGROUND JOB SETTINGS VIEW -->
       <section class="ledger-section" id="view-settings" aria-labelledby="heading-settings" hidden>
         <div class="section-header">
-          <h2 id="heading-settings">Cấu hình hệ thống &amp; Dịch vụ nền</h2>
+          <h2 id="heading-settings">Cài đặt hệ thống</h2>
           <span class="stamp-badge" id="settings-save-status">Đã đồng bộ</span>
         </div>
 
         <div class="settings-grid">
-          <!-- COLUMN 1: BACKGROUND SERVICES CONFIG -->
+          <!-- CARD 1: DEFAULT REGISTRATION & SESSION KEEP-ALIVE -->
           <div class="settings-card">
-            <h3>Dịch vụ duy trì phiên nền (Heartbeat Service)</h3>
-            <p>Tự động gửi tín hiệu giữ phiên làm việc với cổng nhà trường, ngăn chặn ngắt kết nối đột ngột khi treo máy lâu.</p>
+            <div class="settings-card__head">
+              <svg class="ui-icon ui-icon--md" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+              <h3>Mặc định học vụ &amp; Giữ phiên tự động</h3>
+            </div>
+            <p>Thiết lập học kỳ và loại đăng ký mặc định khi mở ứng dụng. Dịch vụ giữ phiên luôn tự động chạy ngầm ngay sau khi đăng nhập.</p>
 
             <div class="form-field">
-              <label for="cfg-heartbeat-interval" class="control-label">Thời gian chu kỳ Heartbeat (giây)</label>
+              <label for="cfg-default-semester" class="control-label">Học kỳ ưu tiên mặc định khi khởi động</label>
+              <select id="cfg-default-semester" class="field-select">
+                <option value="66">HK3 (2026 - 2027), Đợt 66</option>
+                <option value="65" selected>HK2 (2026 - 2027), Đợt 65</option>
+                <option value="64">HK1 (2026 - 2027), Đợt 64</option>
+                <option value="63">HK3 (2025 - 2026), Đợt 63</option>
+                <option value="62">HK2 (2025 - 2026), Đợt 62</option>
+              </select>
+            </div>
+
+            <div class="form-field">
+              <label for="cfg-default-loaidk" class="control-label">Hình thức đăng ký mặc định</label>
+              <select id="cfg-default-loaidk" class="field-select">
+                <option value="1" selected>Học mới</option>
+                <option value="2">Học lại</option>
+                <option value="3">Học cải thiện</option>
+              </select>
+            </div>
+
+            <div class="form-field">
+              <label for="cfg-heartbeat-interval" class="control-label">Chu kỳ làm mới phiên tự động</label>
               <select id="cfg-heartbeat-interval" class="field-select">
                 <option value="30">30 giây (Liên tục)</option>
                 <option value="60">60 giây (Tiêu chuẩn)</option>
-                <option value="62" selected>62 giây (Khuyên dùng - IUH Default)</option>
+                <option value="62" selected>62 giây (Mặc định tối ưu cho IUH)</option>
                 <option value="120">120 giây (Tiết kiệm băng thông)</option>
                 <option value="300">300 giây (5 phút)</option>
               </select>
-              <div class="helper-line">Thời gian đề xuất: 62 giây để vượt qua timeout của cổng sv.iuh.edu.vn.</div>
+              <div class="helper-line">Gửi tín hiệu ngầm định kỳ giúp tài khoản không bị văng phiên trước Giờ G.</div>
             </div>
 
-            <h3 style="margin-top: var(--space-md);">Động cơ giám sát đăng ký (Watchdog)</h3>
-            <p>Cấu hình tần suất thăm dò và chính sách an toàn khi quét tìm chỗ trống.</p>
+            <div class="settings-card__footer btn-row-actions">
+              <button type="button" class="btn" onclick="pingRadarNow()">
+                <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                <span>Kiểm tra kết nối ngay</span>
+              </button>
+              <button type="button" class="btn" onclick="openLoginModal()">
+                <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                <span>Quản lý tài khoản</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- CARD 2: AUTO-REGISTRATION & NOTIFICATION PREFERENCES -->
+          <div class="settings-card">
+            <div class="settings-card__head">
+              <svg class="ui-icon ui-icon--md" viewBox="0 0 24 24" aria-hidden="true"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+              <h3>Tự động đăng ký &amp; Thông báo</h3>
+            </div>
+            <p>Cấu hình tốc độ kiểm tra sĩ số đa luồng, quy tắc xử lý lớp trùng môn và âm báo khi đăng ký thành công.</p>
 
             <div class="form-field">
-              <label for="cfg-sniper-interval" class="control-label">Chu kỳ thăm dò hàng đợi (mili-giây)</label>
+              <label for="cfg-sniper-interval" class="control-label">Tần suất kiểm tra danh sách chờ</label>
               <select id="cfg-sniper-interval" class="field-select">
-                <option value="500">500 ms (Tối đa tốc độ - Giờ G)</option>
-                <option value="1000">1000 ms (Nhanh)</option>
-                <option value="1500" selected>1500 ms (Cân bằng &amp; Ổn định)</option>
-                <option value="3000">3000 ms (An toàn)</option>
+                <option value="500">0.5 giây (Tốc độ cao - Giờ G)</option>
+                <option value="1000">1.0 giây (Nhanh)</option>
+                <option value="1500" selected>1.5 giây (Cân bằng &amp; Ổn định)</option>
+                <option value="3000">3.0 giây (Tiêu chuẩn)</option>
               </select>
             </div>
 
             <div class="form-field">
               <label for="cfg-auto-swap" class="checkbox-control">
                 <input type="checkbox" id="cfg-auto-swap" checked>
-                <span>Tự động đổi lớp: Nếu cùng môn học đã có lớp cũ, tự động hủy để đăng ký lớp mới</span>
+                <span>Tự động đổi lớp: Nếu môn học đã có lớp cũ, tự động hủy lớp cũ để chuyển sang lớp mới</span>
               </label>
             </div>
 
             <div class="form-field">
               <label for="cfg-audio-chime" class="checkbox-control">
                 <input type="checkbox" id="cfg-audio-chime" checked>
-                <span>Phát chuông âm thanh Web Audio khi đăng ký thành công hoặc có slot mở</span>
+                <span>Phát âm báo khi đăng ký thành công hoặc khi phát hiện lớp có chỗ trống</span>
               </label>
             </div>
-          </div>
 
-          <!-- COLUMN 2: REMOTE INTEGRATION & SESSION DIAGNOSTICS -->
-          <div class="settings-card">
-            <h3>Thông báo từ xa qua Telegram Bot</h3>
-            <p>Nhận thông báo báo cáo tức thì về điện thoại ngay khi trạm giám sát ghi danh thành công lớp học phần.</p>
-
-            <div class="form-field">
-              <label for="cfg-telegram-token" class="control-label">Telegram Bot Token</label>
-              <input type="text" id="cfg-telegram-token" class="field-input mono" placeholder="123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ">
-              <div class="helper-line">Tạo bot qua @BotFather trên Telegram để nhận mã Token bảo mật.</div>
-            </div>
-
-            <div class="form-field">
-              <label for="cfg-telegram-chatid" class="control-label">Telegram Chat ID</label>
-              <input type="text" id="cfg-telegram-chatid" class="field-input mono" placeholder="Ví dụ: 987654321">
-              <div class="helper-line">Chat ID của tài khoản hoặc nhóm nhận thông báo.</div>
-            </div>
-
-            <h3 style="margin-top: var(--space-md);">Thông tin phiên &amp; Trạng thái kết nối</h3>
-            <div class="ticket-stub">
-              <div>
-                <strong>Cổng trường sv.iuh.edu.vn</strong>
-                <div class="schedule-meta" id="settings-session-summary">Tài khoản 24687201, Session hoạt động</div>
-              </div>
-              <button type="button" class="btn" onclick="openLoginModal()">Xác thực lại</button>
-            </div>
-
-            <div class="btn-row-actions" style="margin-top: var(--space-lg);">
+            <div class="settings-card__footer btn-row-actions">
               <button type="button" class="btn btn--accent-outline" id="btn-save-settings" onclick="saveSettingsFromForm()">
-                Lưu cấu hình hệ thống
+                <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                <span>Lưu cài đặt</span>
               </button>
               <button type="button" class="btn" onclick="testNotificationChime()">
-                Thử chuông âm thanh
+                <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+                <span>Thử âm báo</span>
               </button>
             </div>
           </div>

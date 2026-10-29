@@ -22,6 +22,38 @@ if getattr(sys, 'frozen', False):
 else:
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+_EXE_CONFIG = (
+    '<?xml version="1.0" encoding="utf-8" ?>\n'
+    '<configuration>\n  <runtime>\n    <loadFromRemoteSources enabled="true"/>\n  </runtime>\n</configuration>\n'
+)
+
+
+def _unblock_zone_identifiers(*roots):
+    """Strip Mark-of-the-Web ADS so .NET/native DLLs from downloaded ZIPs load."""
+    seen = set()
+    for root in roots:
+        if not root or root in seen or not os.path.isdir(root):
+            continue
+        seen.add(root)
+        for dirpath, _dirs, files in os.walk(root):
+            for name in files:
+                if name.lower().endswith(('.dll', '.pyd', '.exe', '.json')):
+                    try:
+                        os.remove(os.path.join(dirpath, name) + ':Zone.Identifier')
+                    except OSError:
+                        pass
+
+
+if getattr(sys, 'frozen', False):
+    _unblock_zone_identifiers(_meipass, _exe_dir)
+    _cfg_path = sys.executable + '.config'
+    if not os.path.exists(_cfg_path):
+        try:
+            with open(_cfg_path, 'w', encoding='utf-8') as _f:
+                _f.write(_EXE_CONFIG)
+        except OSError:
+            pass
+
 import webview
 from iuh_ledger.gui_api import BridgeAPI
 def get_base_dir():

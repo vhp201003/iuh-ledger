@@ -10,6 +10,7 @@ class IUHEndpoints:
     GET_CAPTCHA = "https://sv.iuh.edu.vn/WebCommon/GetCaptcha"
     DASHBOARD = "https://sv.iuh.edu.vn/dashboard.html"
     CHECK_DOT = "https://sv.iuh.edu.vn/SinhVienDangKy/CheckDotChoPhepDangKy"
+    GET_DS_CAM_THI = "https://sv.iuh.edu.vn/SinhVien/GetDsCamThi"
     MON_HOC_CHO_DK = "https://sv.iuh.edu.vn/SinhVienDangKy/MonHocPhanChoDangKy"
     LOP_HOC_CHO_DK = "https://sv.iuh.edu.vn/SinhVienDangKy/LopHocPhanChoDangKy"
     CHI_TIET_LICH = "https://sv.iuh.edu.vn/SinhVienDangKy/GetChiTietLichHoc"
